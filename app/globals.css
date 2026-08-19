@@ -1028,6 +1028,328 @@ html:not(.dark) .chat-empty-state .chat-composer-shell .chat-composer textarea::
   }
 }
 
+/* ── Cloud sync controls: calm connection setup and reversible actions ──── */
+.sync-settings-connection-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(150px, .8fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sync-settings-connection-form label,
+.sync-settings-pair-code label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-dim, #84928e);
+  font-size: 10px;
+}
+
+.sync-settings-connection-form input,
+.sync-settings-pair-code input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--border, #273748) 86%, transparent);
+  border-radius: 9px;
+  outline: none;
+  background: color-mix(in srgb, var(--character-deck-bg, #0c1c1b) 92%, transparent);
+  color: var(--text, #f2ead7);
+  font: inherit;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.sync-settings-connection-form input:focus,
+.sync-settings-pair-code input:focus {
+  border-color: color-mix(in srgb, var(--character-trim, #deba5d) 58%, transparent);
+  background: color-mix(in srgb, var(--character-deck-bg, #0c1c1b) 86%, var(--character-trim, #deba5d) 14%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--character-trim, #deba5d) 9%, transparent);
+}
+
+.sync-settings-inline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.sync-settings-connection-row {
+  gap: 12px;
+}
+
+.sync-settings-connection-copy {
+  min-width: 0;
+}
+
+.sync-settings-secondary-button,
+.sync-settings-primary-button,
+.sync-settings-text-button {
+  transition: transform 180ms ease, border-color 180ms ease, color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.sync-settings-secondary-button:hover:not(:disabled),
+.sync-settings-primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.sync-settings-secondary-button:active:not(:disabled),
+.sync-settings-primary-button:active:not(:disabled) {
+  transform: translateY(0) scale(.98);
+}
+
+.sync-settings-secondary-button:disabled,
+.sync-settings-primary-button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.sync-settings-pair-code {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-top: 11px;
+}
+
+.sync-settings-pair-code label {
+  width: min(260px, 100%);
+}
+
+.sync-settings-pair-code input {
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.sync-settings-pair-code > small {
+  padding-bottom: 8px;
+  color: var(--text-dim, #84928e);
+  font-size: 10px;
+}
+
+.sync-settings-pairing-request,
+.sync-settings-code-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--character-trim, #deba5d) 20%, var(--border, #273748));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--character-trim, #deba5d) 5%, var(--character-deck-bg, #0c1c1b));
+  animation: ranoa-sync-card-in 360ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.sync-settings-pairing-request > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sync-settings-pairing-request strong,
+.sync-settings-code-result span {
+  color: var(--text, #f2ead7);
+  font-size: 11px;
+}
+
+.sync-settings-pairing-request small {
+  overflow: hidden;
+  color: var(--text-dim, #84928e);
+  font-family: var(--ranoa-mono-font, ui-monospace, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-settings-text-button {
+  border: 0;
+  background: transparent;
+  color: var(--character-trim, #deba5d);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.sync-settings-text-button:hover {
+  color: var(--text, #f2ead7);
+}
+
+.sync-settings-code-result code {
+  margin-right: auto;
+  color: var(--character-trim, #deba5d);
+  font-size: 16px;
+  letter-spacing: .18em;
+}
+
+.sync-settings-device-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+  margin-top: 10px;
+  color: var(--text-dim, #84928e);
+  font-size: 9px;
+}
+
+.sync-settings-approval {
+  display: grid;
+  grid-template-columns: 1.1fr minmax(120px, .8fr) 1.4fr auto;
+  align-items: end;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px dashed color-mix(in srgb, var(--character-trim, #deba5d) 25%, var(--border, #273748));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--character-deck-bg, #0c1c1b) 76%, transparent);
+  animation: ranoa-sync-card-in 360ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.sync-settings-approval > div,
+.sync-settings-approval label {
+  display: grid;
+  gap: 5px;
+}
+
+.sync-settings-approval > div strong,
+.sync-settings-approval label span {
+  color: var(--text, #f2ead7);
+  font-size: 10px;
+}
+
+.sync-settings-approval > div small {
+  color: var(--text-dim, #84928e);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.sync-settings-approval input {
+  height: 31px;
+  min-width: 0;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--border, #273748) 86%, transparent);
+  border-radius: 8px;
+  outline: none;
+  background: color-mix(in srgb, var(--character-deck-bg, #0c1c1b) 92%, transparent);
+  color: var(--text-muted, #b7c0ba);
+  font: 10px var(--ranoa-mono-font, ui-monospace, monospace);
+}
+
+@media (max-width: 700px) {
+  .sync-settings-approval {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sync-settings-approval > div {
+    grid-column: 1 / -1;
+  }
+}
+
+.sync-settings-device-meta code {
+  color: var(--text-muted, #b7c0ba);
+  font-family: var(--ranoa-mono-font, ui-monospace, monospace);
+}
+
+.sync-settings-plan {
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--character-trim, #deba5d) 32%, var(--border, #273748));
+  border-radius: 13px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--character-trim, #deba5d) 8%, var(--character-deck-bg, #0c1c1b)), color-mix(in srgb, var(--character-accent, #86b9ff) 5%, var(--character-deck-bg, #0c1c1b)));
+  animation: ranoa-sync-panel-in 420ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.sync-settings-plan-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sync-settings-plan-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.sync-settings-plan-heading strong {
+  color: var(--text, #f2ead7);
+  font-size: 12px;
+}
+
+.sync-settings-plan-heading small,
+.sync-settings-plan-heading > span {
+  color: var(--text-dim, #84928e);
+  font-size: 9px;
+}
+
+.sync-settings-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.sync-settings-plan-grid > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--border, #273748) 66%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--character-deck-bg, #0c1c1b) 70%, transparent);
+}
+
+.sync-settings-plan-grid strong {
+  color: var(--text, #f2ead7);
+  font-size: 16px;
+}
+
+.sync-settings-plan-grid small {
+  color: var(--text-dim, #84928e);
+  font-size: 9px;
+}
+
+.sync-settings-plan-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.sync-settings-plan-warning {
+  margin: 9px 0 0;
+  color: #e7b866;
+  font-size: 10px;
+}
+
+.sync-settings-feedback {
+  margin: 10px 2px 0;
+  color: var(--character-trim, #deba5d);
+  font-size: 10px;
+  animation: ranoa-sync-details-in 220ms ease both;
+}
+
+@media (max-width: 700px) {
+  .sync-settings-connection-form,
+  .sync-settings-plan-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sync-settings-connection-form label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .sync-settings-pair-code {
+    display: grid;
+    align-items: start;
+  }
+
+  .sync-settings-pair-code label {
+    width: 100%;
+  }
+
+  .sync-settings-pair-code > small {
+    padding-bottom: 0;
+  }
+}
+
 /* Cloud sync center: quiet infrastructure UI with the same dark glass language. */
 .sync-settings {
   display: flex;

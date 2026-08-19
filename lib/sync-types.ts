@@ -31,7 +31,7 @@ export interface SyncScanSummary {
   scannedAt: string | null;
 }
 
-export type SyncConnectionStatus = "disconnected" | "connected" | "offline" | "conflict";
+export type SyncConnectionStatus = "disconnected" | "pairing" | "connected" | "offline" | "syncing" | "conflict";
 
 export interface SyncState {
   schemaVersion: 1;

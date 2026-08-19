@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { LocalSyncManifest, SyncScanSummary, SyncState } from "./sync-types";
+import type { LocalSyncManifest, SyncScanSummary, SyncState } from "./sync-types.ts";
 
 export function getSyncDir(agentDir: string): string {
   return join(dirname(agentDir), ".ranoa-sync");

@@ -1,0 +1,23 @@
+[Unit]
+Description=RANOA encrypted sync server
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ranoa-sync
+Group=ranoa-sync
+WorkingDirectory=/opt/ranoa-sync
+EnvironmentFile=/etc/ranoa-sync/server.env
+ExecStart=/usr/bin/node --experimental-strip-types /opt/ranoa-sync/services/sync-server/index.ts
+Restart=on-failure
+RestartSec=4
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ranoa-sync
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

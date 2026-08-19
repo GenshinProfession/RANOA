@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, readdir } from "node:fs/promises";
 import { basename, join, relative, sep } from "node:path";
-import type { LocalSyncEntry, LocalSyncManifest, SyncCategory, SyncCategorySummary, SyncScanSummary } from "./sync-types";
+import type { LocalSyncEntry, LocalSyncManifest, SyncCategory, SyncCategorySummary, SyncScanSummary } from "./sync-types.ts";
 
 const ROOTS: Array<{ category: SyncCategory; path: string }> = [
   { category: "sessions", path: "sessions" },
