@@ -11,10 +11,12 @@ test("renders the new-session composer as one continuous RANOA launch deck", () 
   assert.match(source, /className="chat-empty-hero"/);
   assert.match(source, /className="chat-empty-hero-axis"/);
   assert.doesNotMatch(source, /className="chat-empty-bridge"/);
-  assert.match(source, /className="chat-empty-composer-frame"/);
+  assert.equal((source.match(/<ChatComposerSurface>/g) ?? []).length, 2);
+  assert.match(source, /from "\.\/ChatComposerSurface"/);
   assert.match(source, /t\("empty\.title"\)/);
   assert.match(styles, /\.new-session-context-bar\s*\{[\s\S]*?margin:\s*-1px 0 0;/);
-  assert.match(styles, /\.chat-empty-composer-frame > div\s*\{\s*padding:\s*0 !important;/);
+  assert.match(styles, /\.chat-composer-surface\s*\{[\s\S]*?animation:\s*ranoa-composer-surface-in/);
+  assert.doesNotMatch(styles, /\.chat-composer-surface\s+\.chat-composer-shell::before[\s\S]*?display:\s*block/);
   assert.match(styles, /\.chat-empty-hero-meta\s*\{[\s\S]*?position:\s*static;/);
 });
 

@@ -8,6 +8,7 @@ import { countToolCallBlocks, getAssistantErrorMessage, getDisplayableAssistantB
 import { extractTurnWrittenFiles, type WrittenFile } from "@/lib/turn-written-files";
 import { MessageView } from "./MessageView";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
+import { ChatComposerSurface } from "./ChatComposerSurface";
 import { ChatMinimap, useMessageRefs } from "./ChatMinimap";
 import { ExtensionStatusBar } from "./ExtensionStatusBar";
 import { useI18n } from "@/hooks/useI18n";
@@ -692,9 +693,9 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
               </div>
             </section>
             <NewSessionContextBar cwd={newSessionCwd} onCwdChange={onNewSessionCwdChange} />
-            <div className="chat-empty-composer-frame">
+            <ChatComposerSurface>
               {chatInputElement}
-            </div>
+            </ChatComposerSurface>
             <ExtensionStatusBar statuses={extensionStatuses} widgets={extensionWidgets} />
           </div>
         </div>
@@ -935,10 +936,10 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
         )}
       </div>
 
-      <div className="chat-composer-frame chat-normal-composer-frame relative">
+      <ChatComposerSurface>
         {chatInputElement}
-        <ExtensionStatusBar statuses={extensionStatuses} widgets={extensionWidgets} />
-      </div>
+      </ChatComposerSurface>
+      <ExtensionStatusBar statuses={extensionStatuses} widgets={extensionWidgets} />
       </>
       )}
     </div>

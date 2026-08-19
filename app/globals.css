@@ -8618,21 +8618,24 @@ code,
   font-family: var(--ranoa-mono-font) !important;
 }
 
-/* ── One composer, two placements ──────────────────────────────────────────
-   The launch deck and an active conversation must use the same composer
-   surface. The deck may add a header around it, but never another input-card
-   treatment inside it. The entrance motion belongs to this shared frame, not
-   to the inner shell: this keeps a normal conversation from snapping or
-   replaying a different animation when the session changes. */
-html[data-wallpaper] .chat-empty-composer-frame,
-html[data-wallpaper] .chat-normal-composer-frame {
+/* ── One composer component, two placements ────────────────────────────────
+   Both states render ChatComposerSurface. Only its parent placement differs;
+   the shell, rows, artwork and motion are authored once below. */
+html[data-wallpaper] .chat-composer-surface {
+  position: relative;
+  z-index: 3;
+  padding: 0 0 env(safe-area-inset-bottom);
   animation: ranoa-composer-surface-in 260ms cubic-bezier(.2,.8,.2,1) both !important;
   transform-origin: center bottom;
   will-change: transform, opacity;
 }
 
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-shell,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-shell {
+html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-surface {
+  z-index: 6;
+  margin: 18px 28px 26px !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell {
   min-height: 144px !important;
   border: 1px solid color-mix(in srgb, var(--character-trim) 34%, transparent) !important;
   border-radius: calc(var(--character-radius) - 4px) !important;
@@ -8645,15 +8648,12 @@ html[data-wallpaper] .chat-normal-composer-frame .chat-composer-shell {
 
 /* One surface only: the input row and tool row are layout regions, not cards.
    Older character overrides painted a second inset frame on normal chats. */
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-shell::before,
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-shell::after,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-shell::before,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-shell::after {
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell::before,
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell::after {
   display: none !important;
 }
 
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer {
+html[data-wallpaper] .chat-composer-surface .chat-composer {
   min-height: 84px !important;
   border: 0 !important;
   border-radius: calc(var(--character-radius) - 5px) calc(var(--character-radius) - 5px) 0 0 !important;
@@ -8661,8 +8661,7 @@ html[data-wallpaper] .chat-normal-composer-frame .chat-composer {
   box-shadow: none !important;
 }
 
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools {
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools {
   min-height: 58px !important;
   margin-top: 0 !important;
   padding: 5px 14px 9px !important;
@@ -8670,10 +8669,14 @@ html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools {
   background: transparent !important;
 }
 
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools > div:first-child > button:first-child,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools > div:first-child > button:first-child,
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools .chat-attach-button,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-attach-button {
+/* This placement-specific legacy rule is more specific than the shared rule
+   above; keep the one-surface contract explicit for the launch placement. */
+html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-surface .chat-composer-tools {
+  border-top: 0 !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools > div:first-child > button:first-child,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button {
   width: 36px !important;
   height: 36px !important;
   flex-basis: 36px !important;
@@ -8681,8 +8684,7 @@ html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-atta
   border-radius: 50% !important;
 }
 
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools .chat-model-config-trigger,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-model-config-trigger {
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger {
   width: min(200px, 42vw) !important;
   min-width: 0 !important;
   max-width: min(200px, 42vw) !important;
@@ -8690,15 +8692,13 @@ html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-mode
   padding: 0 18px !important;
 }
 
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools .chat-sound-button,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-sound-button {
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-sound-button {
   width: 32px !important;
   height: 32px !important;
   flex-basis: 32px !important;
 }
 
-html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools .chat-send-button,
-html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-send-button {
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button {
   width: 42px !important;
   height: 42px !important;
   flex-basis: 42px !important;
@@ -8711,37 +8711,31 @@ html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-send
 }
 
 @media (max-width: 760px) {
-  html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-shell,
-  html[data-wallpaper] .chat-normal-composer-frame .chat-composer-shell {
+  html[data-wallpaper] .chat-composer-surface .chat-composer-shell {
     min-height: 132px !important;
   }
 
-  html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer,
-  html[data-wallpaper] .chat-normal-composer-frame .chat-composer {
+  html[data-wallpaper] .chat-composer-surface .chat-composer {
     min-height: 76px !important;
   }
 
-  html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools,
-  html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools {
+  html[data-wallpaper] .chat-composer-surface .chat-composer-tools {
     padding-right: 9px !important;
     padding-left: 8px !important;
   }
 
-  html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools .chat-model-config-trigger,
-  html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-model-config-trigger {
+  html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger {
     width: min(172px, 42vw) !important;
     max-width: min(172px, 42vw) !important;
   }
 
-  html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools .chat-attach-button,
-  html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-attach-button {
+  html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button {
     width: 34px !important;
     height: 34px !important;
     flex-basis: 34px !important;
   }
 
-  html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-tools .chat-send-button,
-  html[data-wallpaper] .chat-normal-composer-frame .chat-composer-tools .chat-send-button {
+  html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button {
     width: 36px !important;
     height: 36px !important;
     flex-basis: 36px !important;
