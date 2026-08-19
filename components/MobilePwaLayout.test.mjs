@@ -8,6 +8,7 @@ const appShellSource = await readFile(new URL("./AppShell.tsx", import.meta.url)
 const chatWindowSource = await readFile(new URL("./ChatWindow.tsx", import.meta.url), "utf8");
 const chatInputSource = await readFile(new URL("./ChatInput.tsx", import.meta.url), "utf8");
 const viewportHookSource = await readFile(new URL("../hooks/useViewportHeight.ts", import.meta.url), "utf8");
+const pwaSource = await readFile(new URL("./PwaRegistration.tsx", import.meta.url), "utf8");
 
 test("configures iOS standalone mode to use the full screen", () => {
   assert.match(layoutSource, /statusBarStyle: "black-translucent"/);
@@ -24,7 +25,7 @@ test("tracks the visual viewport while the software keyboard is open", () => {
   assert.match(appShellSource, /height: "calc\(36px \+ env\(safe-area-inset-top\)\)"/);
   assert.match(appShellSource, /\/\* Right panel tab bar \*\/[\s\S]*?height: "calc\(36px \+ env\(safe-area-inset-top\)\)"/);
   assert.match(appShellSource, /height: "var\(--app-viewport-height, 100dvh\)"/);
-  assert.match(appShellSource, /data-mobile-toolbar-file=\{mobile \? "true" : undefined\}/);
+  assert.doesNotMatch(appShellSource, /data-mobile-toolbar-file/);
   assert.match(viewportHookSource, /window\.visualViewport/);
   assert.match(viewportHookSource, /window\.requestAnimationFrame\(update\)/);
   assert.match(viewportHookSource, /window\.addEventListener\("resize", scheduleUpdate\)/);
@@ -45,4 +46,13 @@ test("contains chat content and inputs within the mobile viewport", () => {
 
 test("prevents iOS focus zoom from widening the layout", () => {
   assert.match(cssSource, /@media \(max-width: 640px\)[\s\S]*?textarea,[\s\S]*?input,[\s\S]*?select \{\s*font-size: 16px !important;/);
+});
+
+test("removes stale development service workers before they can hydrate old client chunks", () => {
+  assert.match(layoutSource, /ranoa-dev-sw-clean-v2/);
+  assert.match(layoutSource, /navigator\.serviceWorker\.controller/);
+  assert.match(layoutSource, /location\.replace\(location\.href\)/);
+  assert.match(pwaSource, /navigator\.serviceWorker\.getRegistrations\(\)/);
+  assert.match(pwaSource, /registration\.unregister\(\)/);
+  assert.match(pwaSource, /key\.startsWith\("pi-web-"\)/);
 });

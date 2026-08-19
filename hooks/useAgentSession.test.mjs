@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const source = await readFile(new URL("./useAgentSession.ts", import.meta.url), "utf8");
-const chatWindowSource = await readFile(new URL("../components/ChatWindow.tsx", import.meta.url), "utf8");
-const chatInputSource = await readFile(new URL("../components/ChatInput.tsx", import.meta.url), "utf8");
-const appShellSource = await readFile(new URL("../components/AppShell.tsx", import.meta.url), "utf8");
+async function readNormalizedSource(relativePath) {
+  return (await readFile(new URL(relativePath, import.meta.url), "utf8"))
+    .replaceAll("\r\n", "\n");
+}
+
+const source = await readNormalizedSource("./useAgentSession.ts");
+const chatWindowSource = await readNormalizedSource("../components/ChatWindow.tsx");
+const chatInputSource = await readNormalizedSource("../components/ChatInput.tsx");
+const appShellSource = await readNormalizedSource("../components/AppShell.tsx");
 
 test("keeps the session event stream open through the idle grace window", () => {
   const finishSource = source.slice(
@@ -87,9 +92,10 @@ test("opening System lazily starts a dormant session without sending a prompt", 
   assert.match(loadSystemPromptSource, /setSystemPrompt\(state\.systemPrompt \?\? ""\)/);
   assert.match(loaderEffectSource, /onSystemPromptLoaderChange\?\.\(loadSystemPrompt\)/);
   assert.match(loaderEffectSource, /onSystemPromptLoaderChange\?\.\(null\)/);
-  assert.match(appShellSource, /onClick=\{\(\) => handleSystemPromptToggle\(mobile\)\}/);
+  assert.match(appShellSource, /onClick=\{handleSystemPromptTabSelect\}/);
+  assert.match(appShellSource, /const handleSystemPromptTabSelect = useCallback/);
   assert.match(appShellSource, /systemPromptLoaderRef\.current/);
-  assert.doesNotMatch(appShellSource, /systemPrompt !== null \|\| systemPromptLoading/);
+  assert.match(appShellSource, /if \(systemPrompt !== null \|\| systemPromptLoading\) return/);
   assert.match(appShellSource, /const loadId = \+\+systemPromptLoadIdRef\.current/);
   assert.match(appShellSource, /systemPromptLoadIdRef\.current === loadId/);
   assert.match(

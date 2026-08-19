@@ -10,3 +10,11 @@ test("anchors the mobile reasoning menu to its left edge", () => {
     /thinkingDropdownOpen[\s\S]*?bottom: "calc\(100% \+ 6px\)"[\s\S]*?isMobile \? \{ left: 0 \} : \{ right: 0 \}/,
   );
 });
+
+test("renders desktop configuration choices in a right-side cascade panel", () => {
+  assert.match(source, /className=\{`chat-config-popover\$\{cascadeOpen \? " is-cascade"/);
+  assert.match(source, /data-chat-config-detail="model"/);
+  assert.match(source, /data-chat-config-detail="thinking"/);
+  assert.match(source, /data-chat-config-detail="tools"/);
+  assert.match(source, /viewportWidth >= panelWidth \+ detailWidth \+ cascadeGap \+ 32/);
+});

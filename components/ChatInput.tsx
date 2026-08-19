@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
@@ -399,6 +400,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [modelDropdownRect, setModelDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const [modelFilter, setModelFilter] = useState("");
+  const [configSection, setConfigSection] = useState<"model" | "thinking" | "tools" | null>(null);
   const [toolDropdownOpen, setToolDropdownOpen] = useState(false);
   const [thinkingDropdownOpen, setThinkingDropdownOpen] = useState(false);
   const [controlsMenuOpen, setControlsMenuOpen] = useState(false);
@@ -750,11 +752,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, []);
 
   const handleSend = useCallback(async () => {
-    const msg = value.trim();
-    if (!msg && !attachedImages.length) return;
+    const currentValue = valueRef.current;
+    const currentImages = attachedImagesRef.current;
+    const msg = currentValue.trim();
+    if (!msg && !currentImages.length) return;
     if (isStreaming) return;
     onAudioUnlock?.();
-    if (!attachedImages.length && msg.startsWith("/") && onBuiltinCommand) {
+    if (!currentImages.length && msg.startsWith("/") && onBuiltinCommand) {
       const result = await onBuiltinCommand(msg);
       if (result.handled) {
         if (!result.error) clearInput();
@@ -762,8 +766,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       }
     }
     clearInput();
-    onSend(msg, attachedImages.length ? attachedImages : undefined);
-  }, [value, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
+    onSend(msg, currentImages.length ? currentImages : undefined);
+  }, [isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
 
   const slashQuery = value.startsWith("/") && !/\s/.test(value.slice(1))
     ? value.slice(1).toLowerCase()
@@ -980,22 +984,24 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, []);
 
   const sendQueued = useCallback((mode: "steer" | "followup") => {
-    const msg = value.trim();
-    if (!msg && !attachedImages.length) return;
+    const currentValue = valueRef.current;
+    const currentImages = attachedImagesRef.current;
+    const msg = currentValue.trim();
+    if (!msg && !currentImages.length) return;
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
     if (msg.startsWith("/") && onPromptWithStreamingBehavior) {
       clearInput();
-      onPromptWithStreamingBehavior(msg, streamingBehavior, attachedImages.length ? attachedImages : undefined);
+      onPromptWithStreamingBehavior(msg, streamingBehavior, currentImages.length ? currentImages : undefined);
       return;
     }
     clearInput();
     if (mode === "steer" && onSteer) {
-      onSteer(msg, attachedImages.length ? attachedImages : undefined);
+      onSteer(msg, currentImages.length ? currentImages : undefined);
     } else if (mode === "followup" && onFollowUp) {
-      onFollowUp(msg, attachedImages.length ? attachedImages : undefined);
+      onFollowUp(msg, currentImages.length ? currentImages : undefined);
     }
-  }, [value, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
+  }, [onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
 
   const getNextSlashIndex = useCallback((direction: "up" | "down" | "left" | "right") => {
     const lastIndex = displayedSlashCommands.length - 1;
@@ -1043,7 +1049,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       const nativeEvent = e.nativeEvent;
-      const sendShortcut = e.key === "Enter" && !e.shiftKey && (!isMobile || e.ctrlKey || e.metaKey);
+      // Enter is the primary send action on desktop and mobile. Shift+Enter
+      // remains the explicit multiline escape hatch; modifier keys continue
+      // to work naturally because they still satisfy this condition.
+      const sendShortcut = e.key === "Enter" && !e.shiftKey && !e.altKey;
       const recentlyComposed = Date.now() - lastCompositionEndAtRef.current < COMPOSITION_END_ENTER_GRACE_MS;
       const isComposing =
         isComposingRef.current ||
@@ -1162,7 +1171,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         }
       }
     },
-    [isMobile, isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, displayedSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value]
+    [isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, displayedSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value]
   );
 
   const handleInput = useCallback(() => {
@@ -1333,6 +1342,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       ) {
         setModelDropdownOpen(false);
         setModelFilter("");
+        setConfigSection(null);
       }
       if (toolDropdownRef.current && !toolDropdownRef.current.contains(e.target as Node)) {
         setToolDropdownOpen(false);
@@ -1354,6 +1364,23 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   useEffect(() => {
     if (!isMobile) setControlsMenuOpen(false);
   }, [isMobile]);
+
+  useLayoutEffect(() => {
+    if (!modelDropdownOpen) return;
+    const updatePosition = () => {
+      const trigger = dropdownRef.current?.querySelector<HTMLElement>("[data-chat-config-trigger='true']");
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      setModelDropdownRect({ top: rect.top, left: rect.left, width: rect.width });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [modelDropdownOpen]);
 
 
 
@@ -1528,6 +1555,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           </div>
         )}
 
+        <div className={`chat-composer-shell${isStreaming ? " is-streaming" : ""}`}>
         {/* Main input */}
         <div style={{ position: "relative", minWidth: 0 }}>
           {historyMenuOpen && inputHistory.length > 0 && (
@@ -1866,6 +1894,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             );
           })()}
           <div
+            className="chat-composer"
             style={{
               minWidth: 0,
               display: "flex",
@@ -1882,6 +1911,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             } as React.CSSProperties}
           >
           <textarea
+            className="chat-composer-input"
+            data-chat-input="true"
             ref={textareaRef}
             value={value}
             onChange={(e) => {
@@ -1931,84 +1962,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             }}
           />
 
-          {isStreaming ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, alignSelf: "flex-end" }}>
-              {onSteer && (
-                <button
-                  onClick={() => sendQueued("steer")}
-                  disabled={!canQueueStreamingMessage}
-                  title="Interrupt the current run and inject this message now"
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "7px 12px",
-                    background: canQueueStreamingMessage ? "rgba(234,179,8,0.12)" : "none",
-                    border: "1px solid rgba(234,179,8,0.35)",
-                    borderRadius: 8,
-                    color: canQueueStreamingMessage ? "rgba(180,130,0,1)" : "var(--text-dim)",
-                    cursor: canQueueStreamingMessage ? "pointer" : "not-allowed",
-                    fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-                    transition: "background 0.12s",
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M5 1 L9 5 L5 9" /><line x1="1" y1="5" x2="9" y2="5" />
-                  </svg>
-                  {t("chat.steer")}
-                </button>
-              )}
-              {onFollowUp && (
-                <button
-                  onClick={() => sendQueued("followup")}
-                  disabled={!canQueueStreamingMessage}
-                  title="Queue this message after the agent finishes"
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "7px 12px",
-                    background: canQueueStreamingMessage ? "rgba(129,140,248,0.12)" : "none",
-                    border: "1px solid rgba(129,140,248,0.35)",
-                    borderRadius: 8,
-                    color: canQueueStreamingMessage ? "rgba(99,102,241,1)" : "var(--text-dim)",
-                    cursor: canQueueStreamingMessage ? "pointer" : "not-allowed",
-                    fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-                    transition: "background 0.12s",
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="5" y1="1" x2="5" y2="6" /><polyline points="2.5 3.5 5 1 7.5 3.5" />
-                    <line x1="2" y1="9" x2="8" y2="9" />
-                  </svg>
-                  {t("chat.followUp")}
-                </button>
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={!value.trim() && !attachedImages.length}
-              style={{
-                flexShrink: 0,
-                alignSelf: "flex-end",
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "7px 14px",
-                background: (value.trim() || attachedImages.length) ? "var(--accent)" : "var(--bg-panel)",
-                border: "none",
-                borderRadius: 8,
-                color: (value.trim() || attachedImages.length) ? "#fff" : "var(--text-dim)",
-                cursor: (value.trim() || attachedImages.length) ? "pointer" : "not-allowed",
-                fontSize: 13,
-                fontWeight: 600,
-                letterSpacing: "-0.01em",
-                boxShadow: (value.trim() || attachedImages.length) ? "0 1px 3px rgba(37,99,235,0.25)" : "none",
-                transition: "background 0.15s, box-shadow 0.15s",
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="2" y1="7" x2="11" y2="7" />
-                <polyline points="7.5 3 12 7 7.5 11" />
-              </svg>
-              {t("chat.send")}
-            </button>
-          )}
           </div>
         </div>
 
@@ -2020,7 +1973,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         )}
 
         {/* Bottom bar: left | center (context) | right */}
-        <div style={{
+        <div className="chat-composer-tools" style={{
           marginTop: 8,
           display: isMobile ? "grid" : "flex",
           gridTemplateColumns: isMobile ? "minmax(0, 1fr) auto" : undefined,
@@ -2031,6 +1984,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           {/* LEFT: attach + model selector (idle) or steer/followup toggle (streaming) */}
           <div style={{ flex: isMobile ? "1 1 auto" : "0 0 auto", minWidth: 0, display: "flex", alignItems: "center", gap: 2 }}>
             <button
+              className="chat-attach-button"
               onClick={() => fileInputRef.current?.click()}
              title={t("chat.attachImage")}
               style={{
@@ -2053,25 +2007,61 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
+                <path d="M12 5v14M5 12h14" />
               </svg>
             </button>
             {/* Model selector — visible always, disabled while the session or switch is busy */}
-            {(modelOptions.length > 0 || currentName || modelError) && onModelChange && (
+            {isStreaming && (onSteer || onFollowUp) && (
+              <div className="chat-streaming-message-actions" role="group" aria-label="Streaming message actions">
+                {onSteer && (
+                  <button
+                    className="chat-stream-action chat-steer-button"
+                    onClick={() => sendQueued("steer")}
+                    disabled={!canQueueStreamingMessage}
+                    title="Interrupt the current run and inject this message now"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 1 L9 5 L5 9" /><line x1="1" y1="5" x2="9" y2="5" />
+                    </svg>
+                    <span>{t("chat.steer")}</span>
+                  </button>
+                )}
+                {onFollowUp && (
+                  <button
+                    className="chat-stream-action chat-followup-button"
+                    onClick={() => sendQueued("followup")}
+                    disabled={!canQueueStreamingMessage}
+                    title="Queue this message after the agent finishes"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="5" y1="1" x2="5" y2="6" /><polyline points="2.5 3.5 5 1 7.5 3.5" />
+                      <line x1="2" y1="9" x2="8" y2="9" />
+                    </svg>
+                    <span>{t("chat.followUp")}</span>
+                  </button>
+                )}
+              </div>
+            )}
+            {onModelChange && !isStreaming && (
                 <div ref={dropdownRef} style={{ position: "relative", flex: isMobile ? "1 1 auto" : undefined, minWidth: 0 }}>
                   <button
+                    className="chat-model-config-trigger"
+                    data-chat-config-trigger="true"
                     onClick={(e) => {
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                       setModelDropdownRect({ top: rect.top, left: rect.left, width: rect.width });
                       setModelDropdownOpen((open) => {
-                        if (open) setModelFilter("");
+                        if (open) {
+                          setModelFilter("");
+                          setConfigSection(null);
+                        }
                         return !open;
                       });
                     }}
                     disabled={isStreaming || modelSwitching}
                     aria-busy={modelSwitching || undefined}
+                    aria-expanded={modelDropdownOpen}
+                    aria-haspopup="menu"
                     style={{
                       display: "flex", alignItems: "center", gap: 6,
                       justifyContent: isMobile ? "flex-start" : undefined,
@@ -2105,39 +2095,63 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                         <path d="M21 12a9 9 0 1 1-2.64-6.36" />
                       </svg>
                     ) : (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="4" y="4" width="16" height="16" rx="2" />
-                        <rect x="9" y="9" width="6" height="6" />
-                        <line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" />
-                        <line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" />
-                        <line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" />
-                        <line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" />
-                      </svg>
+                      <span className="chat-model-status-dot" aria-hidden="true" />
                     )}
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-                      {currentName ?? (modelOptions.length > 0 ? "Select model" : "No models")}
+                      {currentName ?? (modelOptions.length > 0 ? "Select model" : "No models")}{thinkingDisplayLabel !== "auto" ? ` · ${thinkingDisplayLabel}` : ""}
                     </span>
+                    <svg className="chat-config-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
                   </button>
-                  {modelDropdownOpen && modelDropdownRect && (() => {
-                    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-                    const bottom = viewportHeight - modelDropdownRect.top + 6;
-                    const maxH = Math.max(120, Math.min(modelDropdownRect.top - 8, viewportHeight * 0.6));
-                    // On mobile, pin to a small left margin and cap width to the
-                    // viewport so long model names never push the panel off-screen.
-                    const panelPos: React.CSSProperties = isMobile
-                      ? { left: 8, right: 8, maxWidth: "calc(100vw - 16px)" }
-                      : { left: modelDropdownRect.left, width: "max-content", minWidth: modelDropdownRect.width };
+                  {modelDropdownOpen && modelDropdownRect && typeof document !== "undefined" && createPortal((() => {
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    const panelWidth = Math.min(310, viewportWidth - 32);
+                    const detailWidth = configSection === "model" ? 372 : 322;
+                    const cascadeGap = 10;
+                    const cascadeOpen = Boolean(
+                      configSection
+                      && viewportWidth >= panelWidth + detailWidth + cascadeGap + 32,
+                    );
+                    const groupWidth = cascadeOpen ? panelWidth + cascadeGap + detailWidth : panelWidth;
+                    const panelLeft = Math.min(
+                      Math.max(16, modelDropdownRect.left + modelDropdownRect.width - groupWidth),
+                      viewportWidth - groupWidth - 16,
+                    );
+                    const panelBottom = Math.max(8, viewportHeight - modelDropdownRect.top + 8);
+                    const detailMaxHeight = Math.max(160, Math.min(viewportHeight * 0.72, modelDropdownRect.top - 16, 440));
                     return (
-                      <div ref={modelDropdownPanelRef} style={{
+                      <div ref={modelDropdownPanelRef} className={`chat-config-popover${cascadeOpen ? " is-cascade" : ""}${configSection ? " has-detail" : ""}`} data-chat-config-menu="true" role="menu" style={{
                       position: "fixed",
-                      bottom,
-                      ...panelPos,
+                      left: panelLeft,
+                      bottom: panelBottom,
+                      width: panelWidth,
+                      "--chat-config-detail-width": `${detailWidth}px`,
+                      "--chat-config-detail-max-height": `${detailMaxHeight}px`,
                       zIndex: 500, background: "var(--bg)", border: "1px solid var(--border)",
                       borderRadius: 8, boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
-                      overflow: "hidden", maxHeight: maxH, display: "flex", flexDirection: "column",
-                      }}>
+                      overflow: cascadeOpen ? "visible" : "hidden", maxHeight: detailMaxHeight, display: "flex", flexDirection: "column",
+                      } as React.CSSProperties}>
+                      <button
+                        type="button"
+                        className="chat-config-row"
+                        onClick={() => setConfigSection((section) => section === "model" ? null : "model")}
+                        aria-expanded={configSection === "model"}
+                      >
+                        <span>{t("i18n.model")}</span>
+                        <span className="chat-config-row-value">{currentName ?? (modelOptions.length > 0 ? "Select model" : "No models")}</span>
+                        <svg className={configSection === "model" ? "is-open" : ""} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </button>
+                      {configSection === "model" && <div className="chat-config-options" data-chat-config-detail="model">
+                      <div className="chat-config-detail-header">
+                        <span>{t("i18n.model")}</span>
+                        <small>{modelOptions.length}</small>
+                      </div>
                       {showModelFilter && (
-                        <div style={{ padding: "6px 8px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+                        <div className="chat-config-search-wrap">
                           <input
                             value={modelFilter}
                             onChange={(e) => setModelFilter(e.target.value)}
@@ -2152,19 +2166,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                             autoFocus
                             autoComplete="off"
                             spellCheck={false}
-                            style={{
-                              width: "100%",
-                              minWidth: isMobile ? 0 : 220,
-                              fontSize: 11,
-                              fontFamily: "var(--font-mono)",
-                              padding: "5px 8px",
-                              border: "1px solid var(--border)",
-                              borderRadius: 5,
-                              outline: "none",
-                              background: "var(--bg)",
-                              color: "var(--text)",
-                              boxSizing: "border-box",
-                            }}
+                            className="chat-config-search"
                           />
                         </div>
                       )}
@@ -2218,18 +2220,131 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                           </div>
                         ))}
                       </div>
+                      </div>}
+                      {onThinkingLevelChange && (
+                        <>
+                          <button
+                            type="button"
+                            className="chat-config-row"
+                            onClick={() => setConfigSection((section) => section === "thinking" ? null : "thinking")}
+                            aria-expanded={configSection === "thinking"}
+                          >
+                            <span>{t("chat.reasoningLevel")}</span>
+                            <span className="chat-config-row-value">{thinkingDisplayLabel}</span>
+                            <svg className={configSection === "thinking" ? "is-open" : ""} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                          </button>
+                          {configSection === "thinking" && (
+                            <div className="chat-config-options" data-chat-config-detail="thinking">
+                              <div className="chat-config-detail-header">
+                                <span>{t("chat.reasoningLevel")}</span>
+                                <small>{thinkingDisplayLabel}</small>
+                              </div>
+                              {THINKING_LEVELS.filter((lvl) => {
+                                if (!availableThinkingLevels || lvl === "auto") return true;
+                                return availableThinkingLevels.includes(lvl);
+                              }).map((lvl) => {
+                                const isActive = (thinkingLevel ?? "auto") === lvl;
+                                const mappedVal = (lvl !== "auto" && thinkingLevelMap) ? thinkingLevelMap[lvl] : undefined;
+                                const displayLabel = (mappedVal != null && mappedVal !== lvl) ? mappedVal : lvl;
+                                return (
+                                  <button
+                                    key={lvl}
+                                    type="button"
+                                    className={`chat-config-option${isActive ? " is-active" : ""}`}
+                                    onClick={() => {
+                                      if (!isActive) onThinkingLevelChange(lvl);
+                                      setConfigSection(null);
+                                    }}
+                                  >
+                                    <span>{displayLabel}</span>
+                                    <span>{t(THINKING_LEVEL_DESC_KEYS[lvl])}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {onToolPresetChange && (
+                        <>
+                          <button
+                            type="button"
+                            className="chat-config-row"
+                            onClick={() => setConfigSection((section) => section === "tools" ? null : "tools")}
+                            aria-expanded={configSection === "tools"}
+                          >
+                            <span>{t("chat.toolAccess")}</span>
+                            <span className="chat-config-row-value">{toolPresetLabel}</span>
+                            <svg className={configSection === "tools" ? "is-open" : ""} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                          </button>
+                          {configSection === "tools" && (
+                            <div className="chat-config-options" data-chat-config-detail="tools">
+                              <div className="chat-config-detail-header">
+                                <span>{t("chat.toolAccess")}</span>
+                                <small>{toolPresetLabel}</small>
+                              </div>
+                              {TOOL_PRESETS.map((lvl) => {
+                                const preset = TOOL_PRESET_MAP[lvl];
+                                const isActive = (toolPreset ?? "default") === preset;
+                                const description = lvl === "off"
+                                  ? t("chat.noTools")
+                                  : lvl === "read-only"
+                                    ? t("chat.readOnlyTools", { count: 4 })
+                                    : lvl === "default"
+                                      ? t("chat.builtInTools", { count: 4 })
+                                      : t("chat.allBuiltInTools");
+                                return (
+                                  <button
+                                    key={lvl}
+                                    type="button"
+                                    className={`chat-config-option${isActive ? " is-active" : ""}`}
+                                    onClick={() => {
+                                      if (!isActive) onToolPresetChange(preset);
+                                      setConfigSection(null);
+                                    }}
+                                  >
+                                    <span>{lvl}</span>
+                                    <span>{description}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {onCompact && (
+                        <button
+                          type="button"
+                          className="chat-config-action"
+                          onClick={() => {
+                            setModelDropdownOpen(false);
+                            if (isCompacting) onAbortCompaction?.();
+                            else onCompact();
+                          }}
+                        >
+                          <span>{isCompacting ? t("chat.stopCompaction") : t("chat.compactContext")}</span>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" />
+                            <line x1="10" y1="14" x2="3" y2="21" /><line x1="21" y1="3" x2="14" y2="10" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                     );
-                  })()}
+                  })(), document.body)}
                 </div>
             )}
           </div>
 
           {/* spacer */}
-          {!isMobile && <div style={{ flex: 1 }} />}
+          {!isMobile && <div className="chat-composer-spacer" style={{ flex: 1 }} />}
 
           {/* RIGHT: thinking + tools preset + compact + sound (idle) | Stop + sound (streaming) */}
-          <div ref={controlsMenuRef} style={{
+          <div ref={controlsMenuRef} className="chat-composer-controls" data-chat-controls="true" style={{
             flex: "0 0 auto",
             display: "flex",
             alignItems: "center",
@@ -2240,6 +2355,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             {isMobile && (
               <button
                 type="button"
+                className="chat-controls-mobile-more"
                  title={controlsMenuOpen ? undefined : t("chat.moreControls")}
                  aria-label={t("chat.moreControls")}
                 aria-expanded={controlsMenuOpen}
@@ -2282,7 +2398,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 {t("chat.moreControls")}
               </button>
             )}
-            <div style={{
+            <div className="chat-composer-control-strip" style={{
               display: isMobile ? (controlsMenuOpen ? "flex" : "none") : "flex",
               alignItems: "center",
               gap: isMobile ? 1 : 2,
@@ -2304,7 +2420,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               } : null),
             }}>
             {!isStreaming && onThinkingLevelChange && (
-              <div ref={thinkingDropdownRef} style={{ position: "relative" }}>
+              <div ref={thinkingDropdownRef} className="chat-legacy-thinking-control" style={{ position: "relative" }}>
                 <button
                   onClick={() => !isStreaming && setThinkingDropdownOpen((v) => !v)}
                   disabled={isStreaming}
@@ -2341,12 +2457,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   </svg>
                   {(!isMobile || controlsMenuOpen) && <span style={{ whiteSpace: "nowrap" }}>{thinkingDisplayLabel}</span>}
                 </button>
-                {thinkingDropdownOpen && (
-                  <div style={{
-                    position: "absolute", bottom: "calc(100% + 6px)",
+                  {thinkingDropdownOpen && (
+                    <div style={{
+                    position: "absolute",
+                    ...(isMobile ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }),
                     ...(isMobile ? { left: 0 } : { right: 0 }),
                     zIndex: 100, background: "var(--bg)", border: "1px solid var(--border)",
-                    borderRadius: 8, boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
+                    borderRadius: 8,
+                    boxShadow: isMobile ? "0 -4px 16px rgba(0,0,0,0.10)" : "0 8px 20px rgba(0,0,0,0.14)",
                     overflow: "hidden", minWidth: 180,
                   }}>
                     {THINKING_LEVELS.filter((lvl) => {
@@ -2392,7 +2510,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               </div>
             )}
             {!isStreaming && onToolPresetChange && (
-              <div ref={toolDropdownRef} style={{ position: "relative" }}>
+              <div ref={toolDropdownRef} className="chat-legacy-tool-control" style={{ position: "relative" }}>
                 <button
                   onClick={() => !isStreaming && setToolDropdownOpen((v) => !v)}
                   disabled={isStreaming}
@@ -2427,14 +2545,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   </svg>
                   {(!isMobile || controlsMenuOpen) && <span style={{ whiteSpace: "nowrap" }}>{toolPresetLabel}</span>}
                 </button>
-                {toolDropdownOpen && (
-                  <div style={{
+                  {toolDropdownOpen && (
+                    <div style={{
                     position: "absolute",
-                    bottom: "calc(100% + 6px)",
+                    ...(isMobile ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }),
                     right: isMobile ? undefined : 0,
                     left: isMobile ? 0 : undefined,
                     zIndex: 100, background: "var(--bg)", border: "1px solid var(--border)",
-                    borderRadius: 8, boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
+                    borderRadius: 8,
+                    boxShadow: isMobile ? "0 -4px 16px rgba(0,0,0,0.10)" : "0 8px 20px rgba(0,0,0,0.14)",
                     overflow: "hidden", minWidth: 120,
                   }}>
                     {TOOL_PRESETS.map((lvl) => {
@@ -2476,7 +2595,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             )}
 
             {!isStreaming && onCompact && (
-              <div>
+              <div className="chat-legacy-compact-control">
                 <button
                   onClick={isCompacting ? onAbortCompaction : onCompact}
                   disabled={isStreaming && !isCompacting}
@@ -2519,6 +2638,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
             {isStreaming && (
               <button
+                className="chat-stop-button"
                 onClick={onAbort}
                  title={t("chat.stopAgent")}
                 style={{
@@ -2546,6 +2666,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
             {onSoundToggle !== undefined && (
               <button
+                className="chat-sound-button"
                 onClick={onSoundToggle}
                  title={soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}
                  aria-label={soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}
@@ -2591,6 +2712,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             {isMobile && controlsMenuOpen && (
               <button
                 type="button"
+                className="chat-controls-mobile-collapse"
                  title={t("chat.collapseControls")}
                  aria-label={t("chat.collapseControls")}
                 aria-expanded={true}
@@ -2628,9 +2750,39 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 </svg>
               </button>
             )}
+            {!isStreaming && (
+              <button
+                className="chat-send-button"
+                data-chat-send="true"
+                onClick={handleSend}
+                disabled={!value.trim() && !attachedImages.length}
+                aria-label={t("chat.send")}
+                style={{
+                  flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 34,
+                  height: 34,
+                  padding: 0,
+                  background: (value.trim() || attachedImages.length) ? "var(--accent)" : "#59615f",
+                  border: "none",
+                  borderRadius: "50%",
+                  color: (value.trim() || attachedImages.length) ? "#fff" : "#c8cecb",
+                  cursor: (value.trim() || attachedImages.length) ? "pointer" : "not-allowed",
+                  boxShadow: (value.trim() || attachedImages.length) ? "0 1px 3px rgba(37,99,235,0.25)" : "none",
+                  transition: "background 0.15s, box-shadow 0.15s, transform 0.15s",
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="2" y1="7" x2="11" y2="7" />
+                  <polyline points="7.5 3 12 7 7.5 11" />
+                </svg>
+                <span className="chat-send-label">{t("chat.send")}</span>
+              </button>
+            )}
             </div>
           </div>
 
+        </div>
         </div>
       </div>
     </div>

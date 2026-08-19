@@ -60,11 +60,54 @@ test("manual and lifecycle refreshes bypass the server session-list cache", () =
   assert.match(source, /force \? "\/api\/sessions\?force=1" : "\/api\/sessions"/);
   assert.match(source, /cache: "no-store"/);
   assert.match(source, /loadSessions\(isFirst, !isFirst\)/);
-  assert.match(source, /onClick=\{\(\) => loadSessions\(false, true\)\}/);
+  assert.match(source, /const handleSessionRefresh = useCallback\(async \(\) => \{[\s\S]*?loadSessions\(false, true\)/);
   assert.match(source, /loadSessions\(false, true\);[\s\S]*?onBackgroundTaskDone/);
 });
 
 test("does not expose disk-backed actions for transient sessions", () => {
   assert.match(sessionItemSource, /if \(session\.transient\) return;/);
   assert.match(sessionItemSource, /\{hovered && !session\.transient && \(/);
+});
+
+test("session and explorer refreshes expose visible progress and completion states", () => {
+  assert.match(source, /data-refresh-state=\{sessionRefreshing \? "refreshing" : sessionRefreshDone \? "complete" : "idle"\}/);
+  assert.match(source, /className="refresh-feedback-icon"/);
+  assert.match(source, /onRefreshSettled=\{handleExplorerRefreshSettled\}/);
+  assert.match(source, /dataRefreshState=\{explorerRefreshing \? "refreshing" : explorerRefreshDone \? "complete" : "idle"\}/);
+});
+
+test("places new-session creation directly below the brand", () => {
+  const brandIndex = source.indexOf('className="sidebar-brand-row"');
+  const newSessionIndex = source.indexOf('className="sidebar-new-session sidebar-new-session-primary"');
+  const workspaceIndex = source.indexOf('className="workspace-context-card"');
+  const headerIndex = source.indexOf('className="session-list-header"');
+  assert.ok(brandIndex >= 0 && brandIndex < newSessionIndex && newSessionIndex < workspaceIndex && workspaceIndex < headerIndex);
+  assert.match(source, /className="sidebar-brand-edition">WORKBENCH/);
+});
+
+test("keeps conversation search and an accessible file divider in the quiet hierarchy", () => {
+  assert.match(source, /className="sidebar-session-search"/);
+  assert.match(source, /t\("sidebar\.searchSessions"\)/);
+  assert.match(source, /className="file-explorer-divider-grip"/);
+  assert.match(source, /onKeyDown=\{handleExplorerResizeKeyDown\}/);
+  assert.match(source, /if \(event\.key === "ArrowUp"\) nextRatio = explorerRatio \+ 2/);
+});
+
+test("keeps the RANOA brand stable instead of swapping to version numbers", () => {
+  const brandSource = source.slice(source.indexOf("function PiWebTitle"), source.indexOf("export function SessionSidebar"));
+  assert.match(brandSource, /\{PRODUCT_NAME\}/);
+  assert.doesNotMatch(brandSource, /showVersion|NEXT_PUBLIC_APP_VERSION|onClick/);
+});
+
+test("places sidebar collapse inside the branded workbench header", () => {
+  assert.match(source, /onCollapseSidebar\?: \(\) => void/);
+  assert.match(source, /className="sidebar-brand-lockup"/);
+  assert.match(source, /className="sidebar-brand-collapse"/);
+  assert.match(source, /onClick=\{onCollapseSidebar\}/);
+});
+
+test("marks session activity states for the refined visual hierarchy", () => {
+  assert.match(sessionItemSource, /isSelected \? " is-selected"/);
+  assert.match(sessionItemSource, /isRunning \? " is-running"/);
+  assert.match(sessionItemSource, /isUnread \? " is-unread"/);
 });

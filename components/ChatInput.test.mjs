@@ -10,7 +10,7 @@ const jiti = createJiti(import.meta.url, {
 });
 const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, canRestoreUserMessage, filterModelOptions, getUpwardMenuMaxHeight, getUserMessageText, getUserMessageDraftImages } = await jiti.import("./ChatInput.tsx");
 const { clearDraft, getDraft, mergeRestoredSubmissionDraft, mergeRestoredSubmissionText, rekeyDraft, setDraft } = await jiti.import("../lib/draft-store.ts");
-const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
+const { I18nProvider } = await jiti.import("@/hooks/useI18n");
 
 test("renders the upstream model error", () => {
   const html = renderToStaticMarkup(
@@ -102,6 +102,59 @@ test("shows and locks the optimistic model while a switch is pending", () => {
   assert.match(html, /disabled=""/);
   assert.match(html, />DeepSeek V4 Flash</);
   assert.match(html, /animation:spin 0\.8s linear infinite/);
+});
+
+test("moves streaming controls into the composer action rail", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        onSteer() {},
+        onFollowUp() {},
+        onModelChange() {},
+        onSoundToggle() {},
+        isStreaming: true,
+        model: { provider: "deepseek", modelId: "deepseek-v4-pro-0813" },
+      }),
+    ),
+  );
+
+  assert.match(html, /chat-composer-shell is-streaming/);
+  assert.match(html, /chat-streaming-message-actions/);
+  assert.match(html, /chat-steer-button/);
+  assert.match(html, /chat-followup-button/);
+  assert.match(html, /chat-stop-button/);
+  assert.doesNotMatch(html, /data-chat-config-trigger/);
+  assert.ok(
+    html.indexOf("chat-composer-tools") < html.indexOf("chat-streaming-message-actions"),
+    "streaming actions should render in the bottom action rail",
+  );
+});
+
+test("keeps the idle send action at the end of the composer tool rail", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        onModelChange() {},
+        onSoundToggle() {},
+        isStreaming: false,
+        model: { provider: "deepseek", modelId: "deepseek-v4-pro-0813" },
+      }),
+    ),
+  );
+
+  const toolsIndex = html.indexOf("chat-composer-tools");
+  const configIndex = html.indexOf("data-chat-config-trigger");
+  const sendIndex = html.indexOf("data-chat-send");
+  assert.ok(toolsIndex >= 0 && toolsIndex < configIndex, "configuration should render in the bottom tool rail");
+  assert.ok(configIndex < sendIndex, "send should be the final primary action in the bottom tool rail");
 });
 
 test("filters model options by name and id", () => {

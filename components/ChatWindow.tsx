@@ -16,6 +16,8 @@ import { useDragDrop } from "@/hooks/useDragDrop";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { AppUpdateResponse } from "@/lib/api-types";
+import { PRODUCT_NAME } from "@/lib/branding";
+import { NewSessionContextBar } from "./NewSessionContextBar";
 import {
   captureScrollDistance,
   getNextVisibleCount,
@@ -30,6 +32,7 @@ interface Props {
   sessionRunning?: boolean;
   newSessionCwd: string | null;
   newSessionDraftKey: string | null;
+  onNewSessionCwdChange: (cwd: string, projectRoot?: string | null, projectKey?: string | null) => void;
   onAgentEnd?: () => void;
   onAttentionNeeded?: (request: BlockingExtensionUiRequest) => void;
   onSessionCreated?: (session: SessionInfo, sourceDraftKey: string) => void;
@@ -250,7 +253,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
   );
 }
 
-export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
+export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionDraftKey, onNewSessionCwdChange, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
   const { t } = useI18n();
   const isMobile = useIsMobile();
 
@@ -593,7 +596,7 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
 
   return (
     <div
-      className="relative flex h-full min-w-0 flex-col overflow-hidden"
+      className="chat-window relative flex h-full min-w-0 flex-col overflow-hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -663,35 +666,35 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
       </div>
 
       {isEmptyNew ? (
-        <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
-          <div className="w-full max-w-[820px]">
-            <div
-              className="mb-3"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                marginLeft: 16,
-                marginRight: isMobile ? 16 : 52,
-                fontFamily: "var(--font-mono)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "baseline", gap: isMobile ? 7 : 10, minWidth: 0, flex: 1, lineHeight: 1.4, overflow: "hidden" }}>
-                <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: 0, color: "var(--text)", flexShrink: 0, whiteSpace: "nowrap" }}>π</span>
-                <span style={{ fontSize: 22, color: "var(--text)", fontWeight: 700, letterSpacing: 0, flexShrink: 0, whiteSpace: "nowrap" }}>Pi Web</span>
+        <div className="chat-empty-state flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
+          <div className="chat-empty-launch-deck is-launch-redraw w-full max-w-[980px]">
+            <section className="chat-empty-hero" aria-labelledby="ranoa-launch-title">
+              <div className="chat-empty-hero-axis" aria-hidden="true">
+                <span />
+                <div className="chat-empty-hero-emblem">
+                  <svg width="32" height="32" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="24" cy="24" r="17" />
+                    <circle cx="24" cy="24" r="10" opacity="0.55" />
+                    <path d="m24 9 3.8 11.2L39 24l-11.2 3.8L24 39l-3.8-11.2L9 24l11.2-3.8L24 9Z" />
+                    <circle cx="24" cy="24" r="2.4" fill="currentColor" stroke="none" />
+                  </svg>
+                </div>
+                <span />
+              </div>
+              <div className="chat-empty-hero-copy">
+                <span className="chat-empty-hero-eyebrow"><b>π</b> {PRODUCT_NAME} · {t("empty.workbench")}</span>
+                <h1 id="ranoa-launch-title">{t("empty.title")}</h1>
+                <p>{t("empty.description")}</p>
+              </div>
+              <div className="chat-empty-hero-meta">
+                <span className="chat-empty-hero-status"><i aria-hidden="true" />{t("empty.ready")}</span>
                 <NewSessionUpdateLink label={(version) => t("appUpdate.releaseNotes", { version })} />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  web <span style={{ color: "var(--text)" }}>v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"}</span>
-                </span>
-                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  pi <span style={{ color: "var(--text)" }}>v{process.env.NEXT_PUBLIC_PI_VERSION ?? "0.0.0"}</span>
-                </span>
-              </div>
+            </section>
+            <NewSessionContextBar cwd={newSessionCwd} onCwdChange={onNewSessionCwdChange} />
+            <div className="chat-empty-composer-frame">
+              {chatInputElement}
             </div>
-            {chatInputElement}
             <ExtensionStatusBar statuses={extensionStatuses} widgets={extensionWidgets} />
           </div>
         </div>
@@ -932,7 +935,7 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
         )}
       </div>
 
-      <div className="relative">
+      <div className="chat-composer-frame chat-normal-composer-frame relative">
         {chatInputElement}
         <ExtensionStatusBar statuses={extensionStatuses} widgets={extensionWidgets} />
       </div>

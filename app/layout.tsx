@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Mono } from "next/font/google";
 import { PwaRegistration } from "@/components/PwaRegistration";
+import { PRODUCT_NAME } from "@/lib/branding";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
@@ -11,9 +12,9 @@ const notoSansMono = Noto_Sans_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pi Web",
-  description: "Pi Web interface for the pi coding agent",
-  applicationName: "Pi Web",
+  title: PRODUCT_NAME,
+  description: "RANOA interface for the pi coding agent",
+  applicationName: PRODUCT_NAME,
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Pi Web",
+    title: PRODUCT_NAME,
   },
   formatDetection: {
     telephone: false,
@@ -46,10 +47,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a1a1a" },
-  ],
+  themeColor: "#0b1714",
 };
 
 export default function RootLayout({
@@ -58,12 +56,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" translate="no" className={`${notoSansMono.variable} notranslate`} suppressHydrationWarning>
+    <html lang="en" translate="no" className={`${notoSansMono.variable} notranslate dark`} suppressHydrationWarning>
       <head>
         <meta name="google" content="notranslate" />
+        {process.env.NODE_ENV !== "production" && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){try{if(!("serviceWorker" in navigator)||!navigator.serviceWorker.controller)return;var marker="ranoa-dev-sw-clean-v2";if(sessionStorage.getItem(marker)==="done")return;sessionStorage.setItem(marker,"done");document.documentElement.style.visibility="hidden";window.stop();Promise.all([navigator.serviceWorker.getRegistrations().then(function(items){return Promise.all(items.map(function(item){return item.unregister()}))}),typeof caches!=="undefined"?caches.keys().then(function(keys){return Promise.all(keys.filter(function(key){return key.indexOf("pi-web-")===0}).map(function(key){return caches.delete(key)}))}):Promise.resolve()]).finally(function(){location.replace(location.href)})}catch(e){document.documentElement.style.visibility=""}})();`,
+            }}
+          />
+        )}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("pi-theme");var dark=t==="dark"||((t==null||t===""||t==="auto")&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(dark)document.documentElement.classList.add("dark")}catch(e){}})();`,
+            __html: `(function(){try{document.documentElement.classList.add("dark");localStorage.setItem("pi-theme","dark");var w=localStorage.getItem("nova-wallpaper");document.documentElement.dataset.wallpaper=w==="sylphiette"||w==="eris"?w:"roxy"}catch(e){document.documentElement.classList.add("dark");document.documentElement.dataset.wallpaper="roxy"}})();`,
           }}
         />
       </head>

@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# isolated harness development data
+/.pi-harness-dev/
+
 # next.js
 /.next/
 /out/

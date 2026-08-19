@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { loadExplorerOpen, saveExplorerOpen } from "@/lib/file-explorer-state";
+import { PRODUCT_NAME } from "@/lib/branding";
 import { dispatchSessionRowContextMenu } from "@/lib/session-row-context-menu";
 import { skillExpansionToCommand } from "@/lib/slash-display";
 import { getProjectActivity, getRecentProjects, sessionsForProject } from "@/lib/project-groups";
@@ -28,6 +29,9 @@ function ToolbarIconButton({
   background = "none",
   marginRight,
   ariaPressed,
+  ariaBusy,
+  className,
+  dataRefreshState,
   children,
 }: {
   onClick: () => void;
@@ -38,6 +42,9 @@ function ToolbarIconButton({
   background?: string;
   marginRight?: number;
   ariaPressed?: boolean;
+  ariaBusy?: boolean;
+  className?: string;
+  dataRefreshState?: "idle" | "refreshing" | "complete";
   children: ReactNode;
 }) {
   const enter = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -52,11 +59,14 @@ function ToolbarIconButton({
   };
   return (
     <button
+      className={className}
       onClick={onClick}
       disabled={disabled}
       title={title}
       aria-label={title}
       aria-pressed={ariaPressed}
+      aria-busy={ariaBusy}
+      data-refresh-state={dataRefreshState}
       style={{
         position: "relative",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -102,6 +112,13 @@ interface Props {
    *  Lets the app play a cross-workspace completion tone. */
   onBackgroundTaskDone?: () => void;
   onRunningSessionIdsChange?: (ids: Set<string>) => void;
+  /** Persistent utility entry rendered at the bottom of the sidebar. */
+  sidebarTools?: ReactNode;
+  /** Actions scoped to the currently selected conversation. */
+  sessionActions?: ReactNode;
+  /** Collapses the persistent sidebar from its own brand header. */
+  onCollapseSidebar?: () => void;
+  collapseSidebarLabel?: string;
 }
 
 interface WorktreeEntry {
@@ -304,95 +321,26 @@ function buildSessionTree(sessions: SessionInfo[]): SessionTreeNode[] {
   return roots;
 }
 
-const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-
-function useScramble(target: string, running: boolean): string {
-  const [display, setDisplay] = useState(target);
-  const frameRef = useRef<number | null>(null);
-  const iterRef = useRef(0);
-
-  useEffect(() => {
-    if (!running) {
-      setDisplay(target);
-      return;
-    }
-    iterRef.current = 0;
-    const totalFrames = target.length * 4;
-
-    const step = () => {
-      iterRef.current += 1;
-      const progress = iterRef.current / totalFrames;
-      const resolved = Math.floor(progress * target.length);
-
-      setDisplay(
-        target
-          .split("")
-          .map((char, i) => {
-            if (char === " ") return " ";
-            if (i < resolved) return char;
-            return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
-          })
-          .join("")
-      );
-
-      if (iterRef.current < totalFrames) {
-        frameRef.current = requestAnimationFrame(step);
-      } else {
-        setDisplay(target);
-      }
-    };
-
-    frameRef.current = requestAnimationFrame(step);
-    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
-  }, [target, running]);
-
-  return display;
-}
-
 function PiWebTitle() {
-  const [showVersion, setShowVersion] = useState(false);
-  const [scrambling, setScrambling] = useState(false);
-  const revertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const target = showVersion ? `${process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"}p${process.env.NEXT_PUBLIC_PI_VERSION ?? "0.0.0"}` : "Pi Web";
-  const display = useScramble(target, scrambling);
-
-  const triggerScramble = useCallback((toVersion: boolean) => {
-    setShowVersion(toVersion);
-    setScrambling(true);
-    setTimeout(() => setScrambling(false), (toVersion ? 6 : 8) * 4 * (1000 / 60) + 100);
-  }, []);
-
-  const handleClick = useCallback(() => {
-    if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
-
-    const next = !showVersion;
-    triggerScramble(next);
-
-    if (next) {
-      revertTimerRef.current = setTimeout(() => triggerScramble(false), 3000);
-    }
-  }, [showVersion, triggerScramble]);
-
-  useEffect(() => () => { if (revertTimerRef.current) clearTimeout(revertTimerRef.current); }, []);
-
   return (
-    <button
-      onClick={handleClick}
+    <div
+      className="sidebar-brand"
       style={{
-        background: "none", border: "none", padding: 0, cursor: "default",
+        padding: 0,
         fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em",
-        color: showVersion ? "var(--accent)" : "var(--text)",
+        color: "var(--text)",
         fontFamily: "var(--font-mono)",
-        minWidth: "6ch",
+        minWidth: "7ch",
+        display: "inline-flex",
+        alignItems: "center",
       }}
     >
-      {display}
-    </button>
+      {PRODUCT_NAME}
+    </div>
   );
 }
 
-export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange }: Props) {
+export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange, sidebarTools, sessionActions, onCollapseSidebar, collapseSidebarLabel }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -401,6 +349,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const [homeDir, setHomeDir] = useState<string>("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [projectFilter, setProjectFilter] = useState("");
+  const [sessionQuery, setSessionQuery] = useState("");
   const [wtFilter, setWtFilter] = useState("");
   const [customPathOpen, setCustomPathOpen] = useState(false);
   const [customPathValue, setCustomPathValue] = useState("");
@@ -420,11 +369,15 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const wtDropdownRef = useRef<HTMLDivElement>(null);
   const wtNewInputRef = useRef<HTMLInputElement>(null);
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [explorerRatio, setExplorerRatio] = useState(36);
+  const [explorerResizing, setExplorerResizing] = useState(false);
   const [explorerKey, setExplorerKey] = useState(0);
   const [explorerUploadBusy, setExplorerUploadBusy] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
   const [changesCollapsed, setChangesCollapsed] = useState(true);
+  const [sessionRefreshing, setSessionRefreshing] = useState(false);
   const [sessionRefreshDone, setSessionRefreshDone] = useState(false);
+  const [explorerRefreshing, setExplorerRefreshing] = useState(false);
   const [explorerRefreshDone, setExplorerRefreshDone] = useState(false);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
   const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(() => loadUnreadSessionIds());
@@ -434,7 +387,56 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const runningPollAuthoritativeRef = useRef(false);
   const sessionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const explorerRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const explorerRefreshPendingRef = useRef(false);
+  const explorerRefreshStartedAtRef = useRef(0);
   const fileExplorerRef = useRef<FileExplorerHandle>(null);
+  const sessionSidebarRef = useRef<HTMLDivElement>(null);
+  const explorerResizeRef = useRef<{ pointerId: number; startY: number; startRatio: number } | null>(null);
+
+  const handleExplorerResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!explorerOpen || !sessionSidebarRef.current) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    explorerResizeRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startRatio: explorerRatio,
+    };
+    setExplorerResizing(true);
+  }, [explorerOpen, explorerRatio]);
+
+  const handleExplorerResizeMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = explorerResizeRef.current;
+    const sidebar = sessionSidebarRef.current;
+    if (!resize || !sidebar || resize.pointerId !== event.pointerId) return;
+    const height = sidebar.getBoundingClientRect().height;
+    if (height <= 0) return;
+    const deltaRatio = ((resize.startY - event.clientY) / height) * 100;
+    setExplorerRatio(Math.min(58, Math.max(24, resize.startRatio + deltaRatio)));
+  }, []);
+
+  const handleExplorerResizeEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = explorerResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    explorerResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setExplorerResizing(false);
+  }, []);
+
+  const handleExplorerResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!explorerOpen) return;
+    let nextRatio: number | null = null;
+    if (event.key === "ArrowUp") nextRatio = explorerRatio + 2;
+    if (event.key === "ArrowDown") nextRatio = explorerRatio - 2;
+    if (event.key === "Home") nextRatio = 24;
+    if (event.key === "End") nextRatio = 58;
+    if (event.key === "Enter") nextRatio = 36;
+    if (nextRatio === null) return;
+    event.preventDefault();
+    setExplorerRatio(Math.min(58, Math.max(24, nextRatio)));
+  }, [explorerOpen, explorerRatio]);
 
   const loadSessions = useCallback(async (showLoading = false, force = false) => {
     try {
@@ -458,16 +460,55 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         return next.size === prev.size ? prev : next;
       });
       setError(null);
-      if (!showLoading) {
-        setSessionRefreshDone(true);
-        if (sessionRefreshTimerRef.current) clearTimeout(sessionRefreshTimerRef.current);
-        sessionRefreshTimerRef.current = setTimeout(() => setSessionRefreshDone(false), 2000);
-      }
+      return true;
     } catch (e) {
       setError(String(e));
+      return false;
     } finally {
       if (showLoading) setLoading(false);
     }
+  }, []);
+
+  const handleSessionRefresh = useCallback(async () => {
+    if (sessionRefreshing) return;
+    setSessionRefreshDone(false);
+    setSessionRefreshing(true);
+    const [success] = await Promise.all([
+      loadSessions(false, true),
+      new Promise<void>((resolve) => setTimeout(resolve, 520)),
+    ]);
+    setSessionRefreshing(false);
+    if (!success) return;
+    setSessionRefreshDone(true);
+    if (sessionRefreshTimerRef.current) clearTimeout(sessionRefreshTimerRef.current);
+    sessionRefreshTimerRef.current = setTimeout(() => setSessionRefreshDone(false), 1300);
+  }, [loadSessions, sessionRefreshing]);
+
+  const handleExplorerRefresh = useCallback(() => {
+    if (explorerRefreshing || explorerUploadBusy) return;
+    explorerRefreshPendingRef.current = true;
+    explorerRefreshStartedAtRef.current = performance.now();
+    setExplorerRefreshDone(false);
+    setExplorerRefreshing(true);
+    if (onExplorerRefresh) onExplorerRefresh();
+    else setExplorerKey((key) => key + 1);
+  }, [explorerRefreshing, explorerUploadBusy, onExplorerRefresh]);
+
+  const handleExplorerRefreshSettled = useCallback(() => {
+    if (!explorerRefreshPendingRef.current) return;
+    explorerRefreshPendingRef.current = false;
+    const remaining = Math.max(0, 520 - (performance.now() - explorerRefreshStartedAtRef.current));
+    if (explorerRefreshTimerRef.current) clearTimeout(explorerRefreshTimerRef.current);
+    explorerRefreshTimerRef.current = setTimeout(() => {
+      setExplorerRefreshing(false);
+      setExplorerRefreshDone(true);
+      explorerRefreshTimerRef.current = setTimeout(() => setExplorerRefreshDone(false), 1300);
+    }, remaining);
+  }, []);
+
+  useEffect(() => () => {
+    if (sessionRefreshTimerRef.current) clearTimeout(sessionRefreshTimerRef.current);
+    if (explorerRefreshTimerRef.current) clearTimeout(explorerRefreshTimerRef.current);
   }, []);
 
   const initialLoadDone = useRef(false);
@@ -920,9 +961,20 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     [projectActivity, selectedProject],
   );
 
-  const filteredSessions = selectedProject
+  const projectSessions = selectedProject
     ? sessionsForProject(allSessions, selectedProject.key)
     : allSessions;
+  const normalizedSessionQuery = sessionQuery.trim().toLocaleLowerCase();
+  const filteredSessions = normalizedSessionQuery
+    ? projectSessions.filter((session) => {
+        const searchable = [
+          session.name,
+          skillExpansionToCommand(session.firstMessage) ?? session.firstMessage,
+          session.worktreeBranch,
+        ].filter(Boolean).join(" ").toLocaleLowerCase();
+        return searchable.includes(normalizedSessionQuery);
+      })
+    : projectSessions;
   const showWorktreeSwitcher = Boolean(
     worktreeState?.isGit
     && worktreeState.isTopLevel
@@ -956,7 +1008,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const sessionTree = buildSessionTree(filteredSessions);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div ref={sessionSidebarRef} className={`session-sidebar${explorerResizing ? " is-explorer-resizing" : ""}`} style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {customPathOpen && (
         <DirectoryPicker
           busy={customPathValidating}
@@ -969,98 +1021,57 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         />
       )}
       {/* Header */}
-      <div
+      <div className="session-sidebar-header"
         style={{
           padding: "12px 10px 10px",
           borderBottom: "1px solid var(--border)",
           flexShrink: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <PiWebTitle />
-          <div style={{ display: "flex", gap: 6 }}>
-            <button
-              onClick={handleNewSession}
-              disabled={!selectedCwd}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                background: "var(--bg-hover)",
-                border: "1px solid var(--border)",
-                color: selectedCwd ? "var(--text-muted)" : "var(--text-dim)",
-                cursor: selectedCwd ? "pointer" : "not-allowed",
-                height: 32,
-                paddingLeft: 10,
-                paddingRight: 12,
-                borderRadius: 7,
-                fontSize: 12,
-                fontWeight: 500,
-                letterSpacing: "-0.01em",
-                flexShrink: 0,
-                transition: "background 0.12s, color 0.12s, border-color 0.12s",
-              }}
-             title={selectedCwd ? t("sidebar.newSessionTitle", { path: selectedCwd }) : t("sidebar.selectProject")}
-              onMouseEnter={(e) => {
-                if (!selectedCwd) return;
-                e.currentTarget.style.background = "var(--bg-selected)";
-                e.currentTarget.style.color = "var(--accent)";
-                e.currentTarget.style.borderColor = "rgba(37,99,235,0.35)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--bg-hover)";
-                e.currentTarget.style.color = selectedCwd ? "var(--text-muted)" : "var(--text-dim)";
-                e.currentTarget.style.borderColor = "var(--border)";
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                <line x1="6" y1="1" x2="6" y2="11" />
-                <line x1="1" y1="6" x2="11" y2="6" />
-              </svg>
-              {t("sidebar.new")}
-            </button>
-            <button
-              onClick={() => loadSessions(false, true)}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                background: sessionRefreshDone ? "rgba(74,222,128,0.18)" : "var(--bg-hover)",
-                border: `1px solid ${sessionRefreshDone ? "rgba(74,222,128,0.4)" : "var(--border)"}`,
-                color: sessionRefreshDone ? "#4ade80" : "var(--text-muted)",
-                cursor: "pointer",
-                width: 32, height: 32,
-                borderRadius: 7,
-                padding: 0,
-                flexShrink: 0,
-                transition: "background 0.3s, color 0.3s, border-color 0.3s",
-              }}
-              onMouseEnter={(e) => {
-                if (sessionRefreshDone) return;
-                e.currentTarget.style.background = "var(--bg-selected)";
-                e.currentTarget.style.color = "var(--accent)";
-                e.currentTarget.style.borderColor = "rgba(37,99,235,0.35)";
-              }}
-              onMouseLeave={(e) => {
-                if (sessionRefreshDone) return;
-                e.currentTarget.style.background = "var(--bg-hover)";
-                e.currentTarget.style.color = "var(--text-muted)";
-                e.currentTarget.style.borderColor = "var(--border)";
-              }}
-               title={t("sidebar.refresh")}
-            >
-              {sessionRefreshDone ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                  <path d="M3 3v5h5" />
-                </svg>
-              )}
-            </button>
+        <div className="sidebar-brand-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div className="sidebar-brand-lockup">
+            <PiWebTitle />
+            <span className="sidebar-brand-edition">WORKBENCH</span>
           </div>
+          {onCollapseSidebar && (
+            <button
+              type="button"
+              className="sidebar-brand-collapse"
+              onClick={onCollapseSidebar}
+              title={collapseSidebarLabel}
+              aria-label={collapseSidebarLabel}
+              aria-controls="session-sidebar"
+              aria-expanded="true"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M9 3v18" />
+                <path d="m7 9-2.5 3L7 15" />
+              </svg>
+            </button>
+          )}
         </div>
 
-        {/* CWD picker */}
-        <div ref={dropdownRef} style={{ position: "relative" }}>
+        <button
+          onClick={handleNewSession}
+          disabled={!selectedCwd}
+          className="sidebar-new-session sidebar-new-session-primary"
+          title={selectedCwd ? t("sidebar.newSessionTitle", { path: selectedCwd }) : t("sidebar.selectProject")}
+          aria-label={selectedCwd ? t("sidebar.newSessionTitle", { path: selectedCwd }) : t("sidebar.selectProject")}
+        >
+          <span className="sidebar-new-session-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="7" />
+              <path d="M12 8.5v7M8.5 12h7" />
+            </svg>
+          </span>
+          <span>{t("sidebar.newConversation")}</span>
+        </button>
+
+        <div className="workspace-context-card">
+          <div className="workspace-context-label">工作区</div>
+          {/* CWD picker */}
+          <div ref={dropdownRef} className="workspace-path-picker" style={{ position: "relative" }}>
           <button
             onClick={() => setDropdownOpen((v) => !v)}
             title={selectedProject?.root ?? selectedCwd ?? ""}
@@ -1079,6 +1090,15 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               transition: "border-color 0.15s, background 0.15s",
             }}
           >
+            {selectedCwd ? (
+              <svg className="workspace-context-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h5l2 2h8A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-11Z" />
+              </svg>
+            ) : (
+              <svg className="workspace-context-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h5l2 2h8A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-11Z" />
+              </svg>
+            )}
             {selectedCwd ? (
               <PathLabel
                 text={displayCwd(selectedProject?.root ?? selectedCwd, homeDir)}
@@ -1263,7 +1283,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                 <span>{t("sidebar.customPath")}</span>
               </button>
           </AnimatedDropdown>
-        </div>
+          </div>
 
         {/* Worktree switcher — shown only for git projects at a checkout top
             level (repo subdirs keep their own project identity, so switching
@@ -1272,7 +1292,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             switching between worktrees of one project keeps the row mounted
             instead of flickering while data refetches: all worktrees of a
             project share the same list anyway. */}
-        {showWorktreeSwitcher && (() => {
+          {(showWorktreeSwitcher || inactiveWorktreeSelector) && <div className="workspace-context-divider" aria-hidden="true" />}
+          {showWorktreeSwitcher && <div className="workspace-context-label workspace-branch-label">分支</div>}
+          {showWorktreeSwitcher && (() => {
           if (!worktreeState) return null;
           const showWtFilter = worktreeState.worktrees.length >= 8;
           const visibleWorktrees = showWtFilter && wtFilter.trim()
@@ -1280,7 +1302,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                 (w.branch ?? displayCwd(w.path, homeDir)).toLowerCase().includes(wtFilter.trim().toLowerCase()))
             : worktreeState.worktrees;
           return (
-            <div ref={wtDropdownRef} style={{ position: "relative", marginTop: 6 }}>
+            <div ref={wtDropdownRef} className="workspace-branch-picker" style={{ position: "relative", marginTop: 6 }}>
               <button
                 onClick={() => setWtDropdownOpen((v) => !v)}
                  title={currentWorktree ? t("sidebar.switchWorktreeTitle", { path: currentWorktree.path }) : t("sidebar.switchWorktree")}
@@ -1580,12 +1602,13 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             </div>
           );
         })()}
-        {inactiveWorktreeSelector && (
+          {inactiveWorktreeSelector && (
           <button
             type="button"
             aria-disabled="true"
             tabIndex={-1}
             title={inactiveWorktreeSelector.title}
+            className="workspace-branch-picker-inactive"
             style={{
               width: "100%",
               height: 29,
@@ -1615,11 +1638,56 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             </svg>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{inactiveWorktreeSelector.label}</span>
           </button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Session list */}
-      <div style={{ flex: explorerOpen && (selectedCwdProp || selectedCwd) ? "1 1 0" : "1 1 auto", overflowY: "auto", padding: "0", minHeight: 80 }}>
+      <div className="session-list" style={{ flex: explorerOpen && (selectedCwdProp || selectedCwd) ? "1 1 0" : "1 1 auto", overflowY: "auto", padding: "0", minHeight: 80 }}>
+        <div className="session-list-header">
+          <span>{t("sidebar.sessions")}</span>
+          <div className="session-list-actions">
+            {sessionActions}
+            <button
+              onClick={() => void handleSessionRefresh()}
+              disabled={sessionRefreshing}
+              className={`sidebar-refresh-button refresh-feedback-button${sessionRefreshing ? " is-refreshing" : ""}${sessionRefreshDone ? " is-complete" : ""}`}
+              data-refresh-state={sessionRefreshing ? "refreshing" : sessionRefreshDone ? "complete" : "idle"}
+              title={sessionRefreshing ? t("sidebar.refreshing") : sessionRefreshDone ? t("sidebar.refreshComplete") : t("sidebar.refresh")}
+              aria-label={sessionRefreshing ? t("sidebar.refreshing") : sessionRefreshDone ? t("sidebar.refreshComplete") : t("sidebar.refresh")}
+              aria-busy={sessionRefreshing}
+            >
+              {sessionRefreshDone ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg className="refresh-feedback-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+        {(projectSessions.length >= 5 || sessionQuery.length > 0) && <label className="sidebar-session-search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.7-3.7" />
+          </svg>
+          <input
+            type="search"
+            value={sessionQuery}
+            onChange={(event) => setSessionQuery(event.target.value)}
+            placeholder={t("sidebar.searchSessions")}
+            aria-label={t("sidebar.searchSessions")}
+          />
+          {sessionQuery && (
+            <button type="button" onClick={() => setSessionQuery("")} title={t("sidebar.clearSearch")} aria-label={t("sidebar.clearSearch")}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+          )}
+        </label>}
         {loading && (
           <div style={{ padding: "16px 14px", color: "var(--text-muted)", fontSize: 12 }}>
             {t("sidebar.loading")}
@@ -1632,7 +1700,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         )}
         {!loading && !error && filteredSessions.length === 0 && (
           <div style={{ padding: "16px 14px", color: "var(--text-muted)", fontSize: 12 }}>
-            {t("sidebar.noSessions")}
+            {normalizedSessionQuery ? t("sidebar.noMatchingSessions") : t("sidebar.noSessions")}
           </div>
         )}
         {sessionTree.map((node) => (
@@ -1656,16 +1724,38 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       {/* File Explorer section */}
       {(selectedCwdProp || selectedCwd) && (
         <div
+          className={`file-explorer-section${explorerOpen ? " is-open" : ""}`}
           style={{
+            "--file-explorer-size": `${explorerRatio}%`,
             borderTop: "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
-            flex: explorerOpen ? "1 1 0" : "0 0 auto",
+            flex: explorerOpen ? "0 0 36%" : "0 0 auto",
             minHeight: 0,
             overflow: "hidden",
-          }}
+          } as CSSProperties}
         >
-          <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <div
+            className="file-explorer-divider"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-valuemin={24}
+            aria-valuemax={58}
+            aria-valuenow={Math.round(explorerRatio)}
+            aria-label="调整文件浏览器高度"
+            tabIndex={explorerOpen ? 0 : -1}
+            onPointerDown={handleExplorerResizeStart}
+            onPointerMove={handleExplorerResizeMove}
+            onPointerUp={handleExplorerResizeEnd}
+            onPointerCancel={handleExplorerResizeEnd}
+            onKeyDown={handleExplorerResizeKeyDown}
+            onDoubleClick={() => setExplorerRatio(36)}
+          >
+            <span className="file-explorer-divider-track" />
+            <span className="file-explorer-divider-grip" aria-hidden="true"><i /><i /><i /></span>
+            <span className="file-explorer-divider-track" />
+          </div>
+          <div className="file-explorer-toolbar" style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <button
               onClick={() => setExplorerOpen((open) => {
                 const next = !open;
@@ -1691,12 +1781,12 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             >
               <svg
                 width="9" height="9" viewBox="0 0 10 10" fill="none"
-                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
                 style={{ transform: explorerOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}
               >
                 <polyline points="3 2 7 5 3 8" />
               </svg>
-              {t("files.explorer")}
+              <span style={{ fontWeight: 400 }}>{t("files.explorer")}</span>
             </button>
             {explorerOpen && changesCount > 0 && (
               <ToolbarIconButton
@@ -1728,17 +1818,15 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               </ToolbarIconButton>
             )}
             <ToolbarIconButton
-              onClick={() => {
-                if (onExplorerRefresh) onExplorerRefresh();
-                else setExplorerKey((k) => k + 1);
-                setExplorerRefreshDone(true);
-                if (explorerRefreshTimerRef.current) clearTimeout(explorerRefreshTimerRef.current);
-                explorerRefreshTimerRef.current = setTimeout(() => setExplorerRefreshDone(false), 2000);
-              }}
-              title={t("sidebar.refreshExplorer")}
-              skipHover={explorerRefreshDone}
-              color={explorerRefreshDone ? "#4ade80" : "var(--text-dim)"}
-              background={explorerRefreshDone ? "rgba(74,222,128,0.18)" : "none"}
+              onClick={handleExplorerRefresh}
+              disabled={explorerRefreshing || explorerUploadBusy}
+              title={explorerRefreshing ? t("files.refreshing") : explorerRefreshDone ? t("files.refreshComplete") : t("sidebar.refreshExplorer")}
+              className={`refresh-feedback-button${explorerRefreshing ? " is-refreshing" : ""}${explorerRefreshDone ? " is-complete" : ""}`}
+              ariaBusy={explorerRefreshing}
+              dataRefreshState={explorerRefreshing ? "refreshing" : explorerRefreshDone ? "complete" : "idle"}
+              skipHover={explorerRefreshDone || explorerRefreshing}
+              color={explorerRefreshDone ? "#4ade80" : explorerRefreshing ? "var(--accent)" : "var(--text-dim)"}
+              background={explorerRefreshDone ? "rgba(74,222,128,0.18)" : explorerRefreshing ? "color-mix(in srgb, var(--accent) 12%, transparent)" : "none"}
               marginRight={6}
             >
               {explorerRefreshDone ? (
@@ -1746,7 +1834,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="refresh-feedback-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
                   <path d="M3 3v5h5" />
                 </svg>
@@ -1754,7 +1842,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             </ToolbarIconButton>
           </div>
           {explorerOpen && (
-            <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+            <div className="file-explorer-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
               <FileExplorer
                 ref={fileExplorerRef}
                 cwd={selectedCwd ?? selectedCwdProp!}
@@ -1763,6 +1851,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                 onAtMention={onAtMention}
                 onAtMentions={onAtMentions}
                 onUploadBusyChange={setExplorerUploadBusy}
+                onRefreshSettled={handleExplorerRefreshSettled}
                 changesCollapsed={changesCollapsed}
                 onChangesCountChange={setChangesCount}
               />
@@ -1770,6 +1859,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
           )}
         </div>
       )}
+      {sidebarTools}
     </div>
   );
 }
@@ -2074,10 +2164,11 @@ function SessionItem({
   }, [onRenamed, session.cwd, session.id, session.name, session.path]);
 
   // Fixed-height outer wrapper — content swaps in place so the list never reflows
-  const ITEM_HEIGHT = 54;
+  const ITEM_HEIGHT = 62;
 
   return (
     <div
+      className={`session-item${isSelected ? " is-selected" : ""}${isRunning ? " is-running" : ""}${isUnread ? " is-unread" : ""}`}
       onClick={confirmDelete || renaming ? undefined : onClick}
       onContextMenu={confirmDelete || renaming ? undefined : handleContextMenu}
       onMouseEnter={() => setHovered(true)}
@@ -2180,6 +2271,7 @@ function SessionItem({
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
+              className="session-item-title"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -2196,7 +2288,7 @@ function SessionItem({
                 {title}
               </span>
             </div>
-            <div style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 8, color: "var(--text-dim)", fontSize: 11, minWidth: 0 }}>
+            <div className="session-item-meta" style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 8, color: "var(--text-dim)", fontSize: 11, minWidth: 0 }}>
               {isRunning ? (
                 <RunningSessionIndicator />
               ) : isUnread ? (
@@ -2246,6 +2338,7 @@ function SessionItem({
           {hovered && !session.transient && (
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
               <button
+                className="session-row-action"
                 onClick={startRename}
                 title={t("sidebar.rename")}
                 style={{
@@ -2272,6 +2365,7 @@ function SessionItem({
                 </svg>
               </button>
               <button
+                className="session-row-action"
                 onClick={handleDeleteClick}
                 title={t("sidebar.deleteWithShiftClick")}
                 style={{
