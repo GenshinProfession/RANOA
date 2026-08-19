@@ -65,6 +65,10 @@ test("runs pairing, encrypted chunk commit, idempotency, conflict and lease flow
     const audit = await json(endpoint, "/v1/audit", { headers: { authorization: `Bearer ${ownerToken}` } });
     assert.equal(audit.response.status, 200);
     assert.ok(audit.body.events.some((event) => event.action === "object_committed"));
+    const epochBefore = await json(endpoint, "/v1/epoch", { headers: { authorization: `Bearer ${ownerToken}` } });
+    const epochRotate = await json(endpoint, "/v1/epoch/rotate", { method: "POST", headers: { authorization: `Bearer ${ownerToken}` }, body: "{}" });
+    assert.equal(epochRotate.response.status, 200);
+    assert.notEqual(epochRotate.body.serverEpoch, epochBefore.body.serverEpoch);
     const lease = await json(endpoint, "/v1/sessions/session-1/lease", { method: "POST", headers: { authorization: `Bearer ${ownerToken}` }, body: JSON.stringify({ runId: "run-1" }) });
     assert.equal(lease.response.status, 200);
     const otherLease = await json(endpoint, "/v1/sessions/session-1/lease", { method: "POST", headers: { authorization: `Bearer ${approved.body.deviceToken}` }, body: JSON.stringify({ runId: "run-2" }) });

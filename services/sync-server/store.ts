@@ -522,8 +522,19 @@ export class FileSyncStore {
   async createSnapshot(auth: SyncAuthContext, label: string): Promise<StoredSnapshot> {
     const snapshot: StoredSnapshot = { snapshotId: `snap_${randomUUID()}`, createdAt: now(), createdBy: auth.device.deviceId, label, objects: Object.fromEntries(Object.values(auth.vault.objects).map((object) => [object.objectId, object.currentRevision])) };
     auth.vault.snapshots[snapshot.snapshotId] = snapshot;
+    const snapshots = Object.values(auth.vault.snapshots).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    for (const old of snapshots.slice(0, Math.max(0, snapshots.length - 100))) delete auth.vault.snapshots[old.snapshotId];
+    this.audit(auth.vault, auth.device.deviceId, "snapshot_created", { snapshotId: snapshot.snapshotId });
     await this.persist();
     return snapshot;
+  }
+
+  async rotateEpoch(auth: SyncAuthContext): Promise<{ serverEpoch: string }> {
+    if (auth.device.role !== "owner") throw new SyncStoreError("forbidden", "Only the vault owner can rotate the server epoch", 403);
+    auth.vault.serverEpoch = `epoch_${randomUUID()}`;
+    this.audit(auth.vault, auth.device.deviceId, "server_epoch_rotated", { serverEpoch: auth.vault.serverEpoch });
+    await this.persist();
+    return { serverEpoch: auth.vault.serverEpoch };
   }
 
   listSnapshots(auth: SyncAuthContext): SyncSnapshotRecord[] { return Object.values(auth.vault.snapshots).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(publicSnapshot); }

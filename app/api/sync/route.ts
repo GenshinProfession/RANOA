@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { approvePairing, completePairing, createPairingCode, createVault, downloadRemoteChanges, getLocalSyncDevice, listSyncAudit, listSyncConflicts, listSyncDevices, listSyncSnapshots, pairingStatus, previewSyncRestore, requestPairing, resolveSyncConflict, restoreSyncSnapshot, syncPlan, updateSyncDevice, uploadLocalChanges } from "@/lib/sync-client";
+import { approvePairing, completePairing, createPairingCode, createVault, downloadRemoteChanges, getLocalSyncDevice, listSyncAudit, listSyncConflicts, listSyncDevices, listSyncSnapshots, pairingStatus, previewSyncRestore, requestJson, requestPairing, resolveSyncConflict, restoreSyncSnapshot, syncPlan, updateSyncDevice, uploadLocalChanges } from "@/lib/sync-client";
 import type { LocalSyncDevice } from "@/lib/sync-device";
 import type { SyncAuthResponse } from "@/lib/sync-protocol";
 import { scanAgentData } from "@/lib/sync-scanner";
@@ -162,6 +162,12 @@ export async function POST(request: Request) {
       const device = await getLocalSyncDevice(agentDir);
       if (!device?.deviceToken) throw new Error("Pair this device before reading the audit log");
       return NextResponse.json(await listSyncAudit(requiredString(body, "endpoint"), device));
+    }
+
+    if (action === "rotate-epoch") {
+      const device = await getLocalSyncDevice(agentDir);
+      if (!device?.deviceToken) throw new Error("Pair this device before rotating the server epoch");
+      return NextResponse.json((await requestJson<{ serverEpoch: string }>(requiredString(body, "endpoint"), "/v1/epoch/rotate", { method: "POST", body: JSON.stringify({}) }, device.deviceToken)).value);
     }
 
     if (action === "workspace-mappings") return NextResponse.json({ mappings: await readWorkspaceMappings(agentDir) });

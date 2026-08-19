@@ -112,6 +112,8 @@ export async function createVault(endpoint: string, agentDir: string, deviceName
   const response = await requestJson<SyncAuthResponse>(endpoint, "/v1/vaults", { method: "POST", body: JSON.stringify({ deviceId: identity.deviceId, deviceName, publicKey: identity.publicKey, vaultKeyEnvelope: wrapVaultKey(vaultKey, identity.publicKey) }) });
   const device = createLocalVaultState({ ...identity, name: deviceName }, response.value.vaultId, response.value.deviceToken, vaultKey, response.value.serverEpoch);
   await writeLocalSyncDevice(syncDir, device);
+  const journal = await readSyncJournal(agentDir);
+  await writeJsonAtomically(join(syncDir, "journal.json"), { ...journal, serverEpoch: response.value.serverEpoch });
   await writeSyncState(agentDir, { ...(await readSyncState(agentDir)), connection: { status: "connected", endpoint: endpoint.replace(/\/+$/, ""), vaultId: device.vaultId, deviceId: device.deviceId } });
   return device;
 }
@@ -137,6 +139,8 @@ export async function completePairing(endpoint: string, agentDir: string, respon
   const vaultKey = unwrapVaultKey(response.vaultKeyEnvelope, existing.privateKey);
   const device = createLocalVaultState({ ...existing, name: deviceName }, response.vaultId, response.deviceToken, vaultKey, response.serverEpoch);
   await writeLocalSyncDevice(syncDir, device);
+  const journal = await readSyncJournal(agentDir);
+  await writeJsonAtomically(join(syncDir, "journal.json"), { ...journal, serverEpoch: response.serverEpoch });
   await writeSyncState(agentDir, { ...(await readSyncState(agentDir)), connection: { status: "connected", endpoint: endpoint.replace(/\/+$/, ""), vaultId: device.vaultId, deviceId: device.deviceId } });
   return device;
 }
@@ -159,7 +163,13 @@ export async function syncPlan(endpoint: string, agentDir: string, device: Local
     if (present.has(previous.objectId)) continue;
     objects.push({ objectId: previous.objectId, currentRevision: previous.revision, deleted: true, changed: !previous.deleted, chunkIds: [] });
   }
-  return (await requestJson<SyncPlanResponse>(endpoint, "/v1/sync/plan", { method: "POST", body: JSON.stringify({ schemaVersion: 1, cursor: journal.cursor, objects }) }, device.deviceToken!)).value;
+  const plan = (await requestJson<SyncPlanResponse>(endpoint, "/v1/sync/plan", { method: "POST", body: JSON.stringify({ schemaVersion: 1, cursor: journal.cursor, objects }) }, device.deviceToken!)).value;
+  if (journal.serverEpoch && journal.serverEpoch !== plan.serverEpoch) {
+    const error = new Error("The sync server epoch changed. Review recovery before syncing again.") as Error & { code?: string };
+    error.code = "server_epoch_changed";
+    throw error;
+  }
+  return plan;
 }
 
 export async function uploadLocalChanges(endpoint: string, agentDir: string, device: LocalSyncDevice): Promise<{ uploaded: number; conflicts: number; snapshotId: string }> {

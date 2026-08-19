@@ -65,6 +65,16 @@ async function handle(store: FileSyncStore, request: IncomingMessage, response: 
   if (request.method === "GET" && url.pathname === "/health") { sendJson(response, 200, { ok: true, protocol: 1, now: new Date().toISOString() }); return; }
   if (parts[0] !== "v1") throw new SyncStoreError("not_found", "Route not found", 404);
 
+  if (parts[1] === "epoch" && parts.length === 2 && request.method === "GET") {
+    const context = await auth(store, request);
+    sendJson(response, 200, { serverEpoch: context.vault.serverEpoch });
+    return;
+  }
+  if (parts[1] === "epoch" && parts.length === 3 && parts[2] === "rotate" && request.method === "POST") {
+    sendJson(response, 200, await store.rotateEpoch(await auth(store, request)));
+    return;
+  }
+
   if (request.method === "POST" && parts.length === 2 && parts[1] === "vaults") {
     const input = await readJson(request);
     const result = await store.createVault({ deviceId: requiredString(input, "deviceId"), deviceName: requiredString(input, "deviceName"), publicKey: requiredString(input, "publicKey"), vaultKeyEnvelope: input.vaultKeyEnvelope as VaultKeyEnvelope });
