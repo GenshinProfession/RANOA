@@ -5,10 +5,11 @@ import { ModelsConfig } from "./ModelsConfig";
 import { SkillsConfig } from "./SkillsConfig";
 import { PluginsConfig } from "./PluginsConfig";
 import { AppearanceSettings } from "./AppearanceSettings";
+import { SyncSettings } from "./SyncSettings";
 import { useI18n } from "@/hooks/useI18n";
 import { PRODUCT_NAME } from "@/lib/branding";
 
-type SettingsSection = "general" | "appearance" | "models" | "skills" | "plugins";
+type SettingsSection = "general" | "appearance" | "sync" | "models" | "skills" | "plugins";
 
 interface SettingsHubProps {
   cwd: string | null;
@@ -27,6 +28,11 @@ const sectionIcons: Record<SettingsSection, ReactNode> = {
   appearance: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="3" /><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41" />
+    </svg>
+  ),
+  sync: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 18.5a5.5 5.5 0 1 1 1.9-10.66A6.5 6.5 0 0 1 21 10.5a4 4 0 0 1-1 7.9H7Z" /><path d="M12 10v6M9.5 13.5h5" />
     </svg>
   ),
   models: (
@@ -62,6 +68,7 @@ export function SettingsHub({ cwd, sessionId, onClose, onModelsChanged, onPlugin
   const sections: Array<{ id: SettingsSection; label: string; description: string; disabled: boolean }> = [
     { id: "general", label: t("settings.general"), description: t("settings.generalDescription"), disabled: false },
     { id: "appearance", label: t("settings.appearance"), description: t("settings.appearanceDescription"), disabled: false },
+    { id: "sync", label: t("settings.sync"), description: t("settings.syncDescription"), disabled: false },
     { id: "models", label: t("common.models"), description: t("settings.modelsDescription"), disabled: false },
     { id: "skills", label: t("common.skills"), description: t("settings.skillsDescription"), disabled: !cwd },
     { id: "plugins", label: t("common.plugins"), description: t("settings.pluginsDescription"), disabled: !cwd },
@@ -164,6 +171,7 @@ export function SettingsHub({ cwd, sessionId, onClose, onModelsChanged, onPlugin
                 </div>
               )}
               {activeSection === "appearance" && <AppearanceSettings />}
+              {activeSection === "sync" && <SyncSettings />}
               {activeSection === "models" && (
                 <ModelsConfig embedded onClose={() => { onModelsChanged(); onClose(); }} />
               )}

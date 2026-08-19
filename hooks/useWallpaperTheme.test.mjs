@@ -25,9 +25,9 @@ test("gives each character a distinct surface, motif, and composer treatment", (
   assert.match(styles, /Eris — ember steel/);
   assert.match(styles, /--character-composer-art:/);
   assert.match(styles, /html\[data-wallpaper="eris"\] \.chat-empty-launch-deck/);
-  assert.match(styles, /--character-frame-image: url\("\/backgrounds\/roxy-arcane-frame\.png"\)/);
-  assert.match(styles, /--character-frame-image: url\("\/backgrounds\/sylphiette-sanctuary-frame\.png"\)/);
-  assert.match(styles, /--character-frame-image: url\("\/backgrounds\/eris-forge-frame\.png"\)/);
+  assert.match(styles, /--character-frame-image: url\("\/backgrounds\/roxy-arcane-frame-controls-v2\.png"\)/);
+  assert.match(styles, /--character-frame-image: url\("\/backgrounds\/sylphiette-sanctuary-frame-controls-v2\.png"\)/);
+  assert.match(styles, /--character-frame-image: url\("\/backgrounds\/eris-forge-frame-controls-v2\.png"\)/);
   assert.match(styles, /@keyframes character-frame-awaken/);
   assert.match(styles, /\.chat-empty-state \.chat-model-config-trigger/);
   assert.match(styles, /\.chat-empty-state \.chat-composer-shell \.chat-send-button/);

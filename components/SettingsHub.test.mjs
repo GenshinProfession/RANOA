@@ -8,6 +8,7 @@ test("uses a primary settings tree with embedded configuration panes", () => {
   assert.match(source, /className="settings-hub-tree"/);
   assert.match(source, /id: "general"/);
   assert.match(source, /id: "appearance"/);
+  assert.match(source, /id: "sync"/);
   assert.match(source, /id: "models"/);
   assert.match(source, /id: "skills"/);
   assert.match(source, /id: "plugins"/);
@@ -15,6 +16,7 @@ test("uses a primary settings tree with embedded configuration panes", () => {
   assert.match(source, /<SkillsConfig embedded/);
   assert.match(source, /<PluginsConfig embedded/);
   assert.match(source, /<AppearanceSettings/);
+  assert.match(source, /<SyncSettings/);
 });
 
 test("offers only Chinese and English in the general settings pane", () => {

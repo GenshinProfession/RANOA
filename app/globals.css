@@ -774,6 +774,317 @@ html:not(.dark) .chat-empty-state .chat-composer-shell .chat-composer textarea::
   .chat-empty-state .chat-composer-shell { min-height: 132px; }
 }
 
+/* Cloud sync center: quiet infrastructure UI with the same dark glass language. */
+.sync-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--text);
+}
+
+.sync-settings-hero,
+.sync-settings-connection,
+.sync-settings-scan,
+.sync-settings-safety {
+  border: 1px solid rgba(205, 177, 106, 0.2);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(22, 39, 34, 0.92), rgba(9, 22, 21, 0.88));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035), 0 12px 34px rgba(0, 0, 0, 0.12);
+}
+
+.sync-settings-hero {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 18px 19px;
+  border-color: rgba(216, 180, 90, 0.38);
+  background: radial-gradient(circle at 10% 0%, rgba(202, 166, 84, 0.14), transparent 35%), linear-gradient(135deg, rgba(25, 46, 40, 0.96), rgba(9, 21, 20, 0.94));
+}
+
+.sync-settings-hero-mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: #e5bb66;
+  border: 1px solid rgba(229, 187, 102, 0.46);
+  border-radius: 13px;
+  background: radial-gradient(circle, rgba(218, 176, 81, 0.2), rgba(218, 176, 81, 0.03));
+  box-shadow: 0 0 0 5px rgba(218, 176, 81, 0.04), inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.sync-settings-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: #bdad82;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.sync-settings-hero h3,
+.sync-settings-section-heading h3 {
+  margin: 0;
+  color: #f0f1e9;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+}
+
+.sync-settings-hero p,
+.sync-settings-section-heading p {
+  margin: 5px 0 0;
+  color: #899b92;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.sync-settings-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: start;
+  padding: 6px 9px;
+  color: #9daea4;
+  border: 1px solid rgba(165, 184, 172, 0.14);
+  border-radius: 999px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.sync-settings-status i,
+.sync-settings-signal i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d7b45f;
+  box-shadow: 0 0 9px rgba(215, 180, 95, 0.52);
+}
+
+.sync-settings-connection,
+.sync-settings-scan {
+  padding: 17px;
+}
+
+.sync-settings-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sync-settings-phase-badge,
+.sync-settings-lock {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: #bea96f;
+  border: 1px solid rgba(190, 169, 111, 0.24);
+  border-radius: 7px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.sync-settings-connection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 15px;
+  padding: 12px;
+  border: 1px solid rgba(147, 171, 158, 0.13);
+  border-radius: 12px;
+  background: rgba(5, 15, 15, 0.26);
+}
+
+.sync-settings-connection-copy,
+.sync-settings-safety {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sync-settings-connection-copy strong,
+.sync-settings-safety strong {
+  display: block;
+  color: #d9e1db;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.sync-settings-connection-copy small,
+.sync-settings-safety small {
+  display: block;
+  margin-top: 3px;
+  color: #7c9085;
+  font-size: 10px;
+}
+
+.sync-settings-signal {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(213, 177, 87, 0.2);
+  border-radius: 9px;
+  background: rgba(214, 177, 87, 0.06);
+}
+
+.sync-settings-signal i:nth-child(1) { opacity: 0.4; }
+.sync-settings-signal i:nth-child(2) { opacity: 0.68; }
+
+.sync-settings-secondary-button,
+.sync-settings-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, opacity 160ms ease;
+}
+
+.sync-settings-secondary-button {
+  color: #7f9187;
+  border: 1px solid rgba(153, 177, 163, 0.16);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.sync-settings-primary-button {
+  color: #17221e;
+  border: 1px solid rgba(233, 196, 107, 0.8);
+  background: linear-gradient(180deg, #e3bd6a, #bd9550);
+  box-shadow: 0 5px 16px rgba(188, 148, 74, 0.18), inset 0 1px rgba(255, 255, 255, 0.42);
+}
+
+.sync-settings-primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #f0ce7d, #cda45c);
+}
+
+.sync-settings-secondary-button:disabled,
+.sync-settings-primary-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.sync-settings-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.sync-settings-stats > div {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(144, 168, 154, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.sync-settings-stats small,
+.sync-settings-stats strong {
+  display: block;
+}
+
+.sync-settings-stats small {
+  color: #7c9185;
+  font-size: 9px;
+}
+
+.sync-settings-stats strong {
+  overflow: hidden;
+  margin-top: 5px;
+  color: #e1e6df;
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-settings-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sync-settings-category {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(144, 168, 154, 0.1);
+  border-radius: 10px;
+  background: rgba(4, 14, 14, 0.25);
+}
+
+.sync-settings-category-icon {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border: 1px solid #d6b362;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(214, 179, 98, 0.45);
+}
+
+.sync-settings-category > div { min-width: 0; flex: 1; }
+.sync-settings-category strong,
+.sync-settings-category small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-settings-category strong { color: #cfdad2; font-size: 11px; font-weight: 600; }
+.sync-settings-category small { margin-top: 3px; color: #74887e; font-size: 9px; }
+.sync-settings-category-check { color: #c8aa61; font-size: 12px; }
+
+.sync-settings-safety {
+  padding: 13px 15px;
+  border-color: rgba(144, 177, 157, 0.15);
+  background: linear-gradient(100deg, rgba(47, 91, 73, 0.22), rgba(12, 27, 24, 0.7));
+}
+
+.sync-settings-safety-icon {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #dfbd68;
+  border: 1px solid rgba(223, 189, 104, 0.25);
+  border-radius: 9px;
+  background: rgba(223, 189, 104, 0.08);
+}
+
+.sync-settings-safety > div { min-width: 0; flex: 1; }
+.sync-settings-error { margin: 0; color: #ef9e8f; font-size: 11px; }
+.sync-settings-hash { margin: -3px 2px 0; color: #6f8178; font-size: 9px; }
+.sync-settings-hash code { color: #bca66e; font-family: var(--font-mono); }
+.is-spinning { animation: ranoa-sync-spin 820ms linear infinite; }
+
+@keyframes ranoa-sync-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .sync-settings-hero { grid-template-columns: 38px minmax(0, 1fr); padding: 15px; }
+  .sync-settings-hero-mark { width: 38px; height: 38px; }
+  .sync-settings-status { grid-column: 2; justify-self: start; margin-top: -5px; }
+  .sync-settings-section-heading { flex-direction: column; }
+  .sync-settings-primary-button { align-self: stretch; }
+  .sync-settings-stats { grid-template-columns: 1fr 1fr; }
+  .sync-settings-stats > div:last-child { grid-column: 1 / -1; }
+  .sync-settings-category-grid { grid-template-columns: 1fr; }
+  .sync-settings-connection-row { align-items: flex-start; flex-direction: column; }
+  .sync-settings-secondary-button { width: 100%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .settings-hub-overlay,
   .settings-hub-shell { animation: none; }
