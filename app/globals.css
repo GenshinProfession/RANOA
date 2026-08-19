@@ -774,6 +774,260 @@ html:not(.dark) .chat-empty-state .chat-composer-shell .chat-composer textarea::
   .chat-empty-state .chat-composer-shell { min-height: 132px; }
 }
 
+/* ── Cloud sync center: route animation and progressive disclosure ──────── */
+.sync-settings[data-sync-state="scanning"] .sync-settings-hero-mark {
+  color: var(--character-trim, #deba5d);
+  animation: ranoa-sync-mark-pulse 1.2s ease-in-out infinite;
+}
+
+.sync-settings[data-sync-state="complete"] .sync-settings-hero {
+  border-color: color-mix(in srgb, var(--character-trim, #deba5d) 70%, transparent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--character-trim, #deba5d) 12%, transparent);
+}
+
+.sync-settings-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.sync-settings-hero::before {
+  content: "";
+  position: absolute;
+  inset: -45% -15%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 17% 50%, color-mix(in srgb, var(--character-trim, #deba5d) 15%, transparent), transparent 27%),
+    radial-gradient(circle at 82% 15%, color-mix(in srgb, var(--character-accent, #86b9ff) 13%, transparent), transparent 26%);
+  opacity: .42;
+  animation: ranoa-sync-atmosphere 8s ease-in-out infinite;
+}
+
+.sync-settings-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.sync-settings-hero-svg {
+  transition: transform 320ms ease, filter 320ms ease;
+}
+
+.sync-settings[data-sync-state="scanning"] .sync-settings-hero-svg {
+  transform: rotate(-8deg) scale(1.08);
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--character-trim, #deba5d) 50%, transparent));
+}
+
+.sync-settings-journey {
+  padding: 11px 16px 13px;
+  border: 1px solid color-mix(in srgb, var(--character-trim, #deba5d) 18%, var(--border, #273748));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--character-deck-bg, #0c1c1b) 82%, transparent);
+  animation: ranoa-sync-panel-in 460ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.sync-settings-journey-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text, #f2ead7);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.sync-settings-journey-heading small {
+  color: var(--text-dim, #84928e);
+  font-size: 9px;
+  letter-spacing: .06em;
+}
+
+.sync-settings-journey-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.sync-settings-journey-line {
+  position: absolute;
+  top: 12px;
+  right: 12%;
+  left: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--character-trim, #deba5d) 55%, transparent), color-mix(in srgb, var(--text-dim, #84928e) 40%, transparent), color-mix(in srgb, var(--text-dim, #84928e) 14%, transparent));
+}
+
+.sync-settings-step {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-direction: column;
+  color: var(--text-dim, #84928e);
+  font-size: 10px;
+  animation: ranoa-sync-step-in 420ms cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--sync-step, 0) * 90ms + 90ms);
+}
+
+.sync-settings-step-orb {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid color-mix(in srgb, var(--text-dim, #84928e) 45%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--character-deck-bg, #0c1c1b) 92%, transparent);
+  color: var(--text-dim, #84928e);
+  font-size: 10px;
+  transition: background 260ms ease, border-color 260ms ease, color 260ms ease, box-shadow 260ms ease;
+}
+
+.sync-settings-step.is-active {
+  color: var(--text, #f2ead7);
+}
+
+.sync-settings-step.is-active .sync-settings-step-orb {
+  border-color: var(--character-trim, #deba5d);
+  color: var(--character-trim, #deba5d);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--character-trim, #deba5d) 8%, transparent);
+  animation: ranoa-sync-orb-pulse 2s ease-in-out infinite;
+}
+
+.sync-settings-step.is-done .sync-settings-step-orb {
+  border-color: var(--character-trim, #deba5d);
+  background: var(--character-trim, #deba5d);
+  color: var(--character-deck-bg, #0c1c1b);
+}
+
+.sync-settings-stats > div,
+.sync-settings-category {
+  animation: ranoa-sync-card-in 420ms cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--sync-index, 0) * 55ms + 120ms);
+}
+
+.sync-settings-category {
+  transition: transform 220ms ease, border-color 220ms ease, background 220ms ease;
+}
+
+.sync-settings-category:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--character-trim, #deba5d) 34%, var(--border, #273748));
+  background: color-mix(in srgb, var(--character-deck-bg, #0c1c1b) 92%, var(--character-trim, #deba5d) 8%);
+}
+
+.sync-settings-excluded {
+  margin-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border, #273748) 70%, transparent);
+}
+
+.sync-settings-excluded summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 2px 2px;
+  cursor: pointer;
+  color: var(--text-dim, #84928e);
+  font-size: 10px;
+  list-style: none;
+  transition: color 180ms ease;
+}
+
+.sync-settings-excluded summary::-webkit-details-marker {
+  display: none;
+}
+
+.sync-settings-excluded summary:hover {
+  color: var(--text, #f2ead7);
+}
+
+.sync-settings-details-chevron {
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 220ms ease;
+}
+
+.sync-settings-excluded[open] .sync-settings-details-chevron {
+  transform: rotate(180deg);
+}
+
+.sync-settings-excluded-list {
+  display: grid;
+  gap: 6px;
+  padding: 6px 0 2px;
+  animation: ranoa-sync-details-in 220ms ease both;
+}
+
+.sync-settings-excluded-list > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text-dim, #84928e);
+  font-size: 10px;
+}
+
+.sync-settings-excluded-list code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted, #b7c0ba);
+}
+
+.sync-settings-excluded-list small {
+  flex: 0 0 auto;
+  color: var(--character-trim, #deba5d);
+  font-size: 9px;
+}
+
+@keyframes ranoa-sync-atmosphere {
+  0%, 100% { opacity: .25; transform: translate3d(-3%, 0, 0) scale(1); }
+  50% { opacity: .62; transform: translate3d(3%, -2px, 0) scale(1.06); }
+}
+
+@keyframes ranoa-sync-mark-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@keyframes ranoa-sync-orb-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--character-trim, #deba5d) 0%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--character-trim, #deba5d) 10%, transparent), 0 0 16px color-mix(in srgb, var(--character-trim, #deba5d) 24%, transparent); }
+}
+
+@keyframes ranoa-sync-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ranoa-sync-step-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ranoa-sync-card-in {
+  from { opacity: 0; transform: translateY(6px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ranoa-sync-details-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-settings *,
+  .sync-settings::before,
+  .sync-settings::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 /* Cloud sync center: quiet infrastructure UI with the same dark glass language. */
 .sync-settings {
   display: flex;

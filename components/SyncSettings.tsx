@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import type { SyncCategorySummary, SyncScanSummary, SyncState } from "@/lib/sync-types";
 
@@ -35,7 +35,13 @@ export function SyncSettings() {
   const [state, setState] = useState<SyncResponse>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [scanFeedback, setScanFeedback] = useState<"idle" | "complete">("idle");
   const [error, setError] = useState<string | null>(null);
+  const scanFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (scanFeedbackTimerRef.current) clearTimeout(scanFeedbackTimerRef.current);
+  }, []);
 
   const loadState = useCallback(async () => {
     try {
@@ -54,6 +60,7 @@ export function SyncSettings() {
 
   const scan = useCallback(async () => {
     setScanning(true);
+    setScanFeedback("idle");
     setError(null);
     try {
       const response = await fetch("/api/sync", {
@@ -64,6 +71,9 @@ export function SyncSettings() {
       const payload = await response.json() as SyncResponse & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to scan local Pi data");
       setState(payload);
+      setScanFeedback("complete");
+      if (scanFeedbackTimerRef.current) clearTimeout(scanFeedbackTimerRef.current);
+      scanFeedbackTimerRef.current = setTimeout(() => setScanFeedback("idle"), 2200);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to scan local Pi data");
     } finally {
@@ -73,12 +83,18 @@ export function SyncSettings() {
 
   const scanSummary: SyncScanSummary | null = state.lastScan;
   const categoryRows = useMemo(() => scanSummary?.categories ?? [], [scanSummary]);
+  const visualState = scanning ? "scanning" : scanFeedback === "complete" ? "complete" : state.connection.status;
+  const journey = [
+    { id: "inventory", label: t("sync.step.inventory"), state: scanning ? "active" : scanSummary ? "done" : "active" },
+    { id: "encryption", label: t("sync.step.encryption"), state: "waiting" },
+    { id: "ready", label: t("sync.step.ready"), state: "waiting" },
+  ] as const;
 
   return (
-    <div className="sync-settings">
+    <div className="sync-settings" data-sync-state={visualState}>
       <section className="sync-settings-hero">
         <div className="sync-settings-hero-mark" aria-hidden="true">
-          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="sync-settings-hero-svg" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 18.5a5.5 5.5 0 1 1 1.9-10.66A6.5 6.5 0 0 1 21 10.5a4 4 0 0 1-1 7.9H7Z" />
             <path d="M12 10v6M9.5 13.5h5" />
           </svg>
@@ -88,7 +104,23 @@ export function SyncSettings() {
           <h3>{t("sync.title")}</h3>
           <p>{t("sync.description")}</p>
         </div>
-        <span className="sync-settings-status"><i />{t("sync.disconnected")}</span>
+        <span className="sync-settings-status" aria-live="polite"><i />{scanning ? t("sync.scanning") : scanFeedback === "complete" ? t("sync.scanComplete") : t("sync.disconnected")}</span>
+      </section>
+
+      <section className="sync-settings-journey" aria-label={t("sync.progressTitle")}>
+        <div className="sync-settings-journey-heading">
+          <span>{t("sync.progressTitle")}</span>
+          <small>{t("sync.phaseLabel")}</small>
+        </div>
+        <div className="sync-settings-journey-track">
+          <span className="sync-settings-journey-line" aria-hidden="true" />
+          {journey.map((step, index) => (
+            <div className={`sync-settings-step is-${step.state}`} key={step.id} style={{ "--sync-step": index } as CSSProperties}>
+              <span className="sync-settings-step-orb" aria-hidden="true">{step.state === "done" ? "✓" : index + 1}</span>
+              <span>{step.label}</span>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="sync-settings-connection">
@@ -120,20 +152,28 @@ export function SyncSettings() {
           </button>
         </div>
         <div className="sync-settings-stats">
-          <div><small>{t("sync.files")}</small><strong>{scanSummary?.files ?? "—"}</strong></div>
-          <div><small>{t("sync.size")}</small><strong>{scanSummary ? formatBytes(scanSummary.bytes) : "—"}</strong></div>
-          <div><small>{t("sync.lastScan")}</small><strong>{scanSummary ? new Date(scanSummary.scannedAt ?? "").toLocaleTimeString() : t("sync.notScanned")}</strong></div>
+          <div style={{ "--sync-index": 0 } as CSSProperties}><small>{t("sync.files")}</small><strong>{scanSummary?.files ?? "—"}</strong></div>
+          <div style={{ "--sync-index": 1 } as CSSProperties}><small>{t("sync.size")}</small><strong>{scanSummary ? formatBytes(scanSummary.bytes) : "—"}</strong></div>
+          <div style={{ "--sync-index": 2 } as CSSProperties}><small>{t("sync.lastScan")}</small><strong>{scanSummary ? new Date(scanSummary.scannedAt ?? "").toLocaleTimeString() : t("sync.notScanned")}</strong></div>
         </div>
         {categoryRows.length > 0 && (
           <div className="sync-settings-category-grid">
-            {categoryRows.map((row) => (
-              <div className="sync-settings-category" key={row.category}>
+            {categoryRows.map((row, index) => (
+              <div className="sync-settings-category" key={row.category} style={{ "--sync-index": index } as CSSProperties}>
                 <span className="sync-settings-category-icon" aria-hidden="true" />
                 <div><strong>{categoryLabel(row.category, t)}</strong><small>{row.files} {t("sync.filesUnit")} · {formatBytes(row.bytes)}</small></div>
                 <span className="sync-settings-category-check">✓</span>
               </div>
             ))}
           </div>
+        )}
+        {scanSummary && (
+          <details className="sync-settings-excluded">
+            <summary><span>{t("sync.excludedTitle", { count: scanSummary.skipped.length })}</span><span className="sync-settings-details-chevron">⌄</span></summary>
+            <div className="sync-settings-excluded-list">
+              {scanSummary.skipped.map((item) => <span key={item.path}><code>{item.path}</code><small>{t(`sync.excludedReason.${item.reason}`)}</small></span>)}
+            </div>
+          </details>
         )}
       </section>
 
