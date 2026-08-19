@@ -8634,8 +8634,22 @@ html[data-wallpaper] .chat-normal-composer-frame {
 html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-shell,
 html[data-wallpaper] .chat-normal-composer-frame .chat-composer-shell {
   min-height: 144px !important;
+  border: 1px solid color-mix(in srgb, var(--character-trim) 34%, transparent) !important;
   border-radius: calc(var(--character-radius) - 4px) !important;
+  background: var(--character-composer-bg, var(--character-deck-bg)) !important;
+  box-shadow:
+    inset 0 1px color-mix(in srgb, white 6%, transparent),
+    0 12px 28px color-mix(in srgb, #000 18%, transparent) !important;
   animation: none !important;
+}
+
+/* One surface only: the input row and tool row are layout regions, not cards.
+   Older character overrides painted a second inset frame on normal chats. */
+html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-shell::before,
+html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer-shell::after,
+html[data-wallpaper] .chat-normal-composer-frame .chat-composer-shell::before,
+html[data-wallpaper] .chat-normal-composer-frame .chat-composer-shell::after {
+  display: none !important;
 }
 
 html[data-wallpaper] .chat-empty-launch-deck.is-launch-redraw .chat-composer,
