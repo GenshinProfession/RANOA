@@ -208,6 +208,13 @@ export class FileSyncStore {
       await this.persistence.init();
       const stored = await this.persistence.load();
       this.data = stored ?? emptyFile();
+      for (const vault of Object.values(this.data.vaults)) {
+        vault.audit ??= [];
+        vault.leases ??= {};
+        vault.conflicts ??= {};
+        vault.snapshots ??= {};
+        vault.operations ??= {};
+      }
       if (!stored) await this.persistence.save(this.data);
       this.loaded = true;
       return;
