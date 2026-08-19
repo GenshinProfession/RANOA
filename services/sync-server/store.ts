@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import type { VaultKeyEnvelope, EncryptedPayload } from "../../lib/sync-crypto.ts";
 import type {
   SyncAuthResponse,
+  SyncAuditRecord,
   SyncChangePage,
   SyncCommitRequest,
   SyncCommitResponse,
@@ -11,6 +12,9 @@ import type {
   SyncDeviceRole,
   SyncLeaseResponse,
   SyncObjectDescriptor,
+  SyncRestorePlan,
+  SyncSnapshotRecord,
+  SyncConflictRecord,
   SyncPlanRequest,
   SyncPlanResponse,
 } from "../../lib/sync-protocol.ts";
@@ -65,6 +69,8 @@ interface StoredConflict {
   status: "open" | "resolved";
 }
 
+type StoredAuditEvent = SyncAuditRecord;
+
 interface StoredSnapshot {
   snapshotId: string;
   createdAt: string;
@@ -109,6 +115,7 @@ interface StoredVault {
   conflicts: Record<string, StoredConflict>;
   snapshots: Record<string, StoredSnapshot>;
   operations: Record<string, SyncCommitResponse>;
+  audit: StoredAuditEvent[];
 }
 
 export interface StoreFile {
@@ -175,6 +182,14 @@ function emptyFile(): StoreFile {
   return { schemaVersion: 1, vaults: {}, pairingCodes: {}, pairingRequests: {} };
 }
 
+function publicConflict(conflict: StoredConflict): SyncConflictRecord {
+  return { ...conflict };
+}
+
+function publicSnapshot(snapshot: StoredSnapshot): SyncSnapshotRecord {
+  return { snapshotId: snapshot.snapshotId, createdAt: snapshot.createdAt, createdBy: snapshot.createdBy, label: snapshot.label, objectCount: Object.keys(snapshot.objects).length };
+}
+
 export class FileSyncStore {
   private data: StoreFile = emptyFile();
   private loaded = false;
@@ -200,6 +215,13 @@ export class FileSyncStore {
     await mkdir(this.chunksDir, { recursive: true });
     try {
       this.data = JSON.parse(await readFile(this.statePath, "utf8")) as StoreFile;
+      for (const vault of Object.values(this.data.vaults)) {
+        vault.audit ??= [];
+        vault.leases ??= {};
+        vault.conflicts ??= {};
+        vault.snapshots ??= {};
+        vault.operations ??= {};
+      }
     } catch (error) {
       const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
       if (code !== "ENOENT") throw error;
@@ -258,8 +280,10 @@ export class FileSyncStore {
       conflicts: {},
       snapshots: {},
       operations: {},
+      audit: [],
     };
     this.data.vaults[vaultId] = vault;
+    this.audit(vault, device.deviceId, "vault_created");
     await this.persist();
     return { vaultId, device: publicDevice(device), deviceToken, vaultKeyEnvelope: device.vaultKeyEnvelope, serverEpoch: vault.serverEpoch };
   }
@@ -275,6 +299,12 @@ export class FileSyncStore {
       return { vault, device };
     }
     throw new SyncStoreError("unauthorized", "Invalid sync device token", 401);
+  }
+
+  private audit(vault: StoredVault, deviceId: string, action: string, details?: Record<string, string | number | boolean>): void {
+    vault.audit ??= [];
+    vault.audit.push({ eventId: `audit_${randomUUID()}`, action, deviceId, createdAt: now(), details });
+    if (vault.audit.length > 2000) vault.audit.splice(0, vault.audit.length - 2000);
   }
 
   async createPairingCode(auth: SyncAuthContext): Promise<{ code: string; expiresAt: string }> {
@@ -320,6 +350,7 @@ export class FileSyncStore {
     const response: SyncAuthResponse = { vaultId: auth.vault.vaultId, device: publicDevice(device), deviceToken, vaultKeyEnvelope, serverEpoch: auth.vault.serverEpoch };
     request.status = "approved";
     request.response = response;
+    this.audit(auth.vault, auth.device.deviceId, "device_approved", { deviceId });
     await this.persist();
     return response;
   }
@@ -342,6 +373,17 @@ export class FileSyncStore {
     if (!device) throw new SyncStoreError("device_not_found", "Device not found", 404);
     device.status = "revoked";
     device.role = "revoked";
+    this.audit(auth.vault, auth.device.deviceId, "device_revoked", { deviceId });
+    await this.persist();
+  }
+
+  async updateDevice(auth: SyncAuthContext, deviceId: string, input: { name?: string; role?: "full" | "read_only" }): Promise<void> {
+    if (auth.device.role !== "owner") throw new SyncStoreError("forbidden", "Only the vault owner can update devices", 403);
+    const device = auth.vault.devices[deviceId];
+    if (!device || device.status !== "active") throw new SyncStoreError("device_not_found", "Device not found", 404);
+    if (typeof input.name === "string" && input.name.trim()) device.name = input.name.trim().slice(0, 80);
+    if (input.role && deviceId !== auth.device.deviceId) device.role = input.role;
+    this.audit(auth.vault, auth.device.deviceId, "device_updated", { deviceId, role: device.role });
     await this.persist();
   }
 
@@ -357,7 +399,10 @@ export class FileSyncStore {
         for (const chunkId of local.chunkIds ?? []) if (!(await this.hasChunk(auth.vault.vaultId, chunkId))) missingChunks.add(chunkId);
         continue;
       }
-      if (remote.currentRevision > local.currentRevision) download.push(descriptor(remote));
+      if (local.changed) {
+        upload.push(local.objectId);
+        for (const chunkId of local.chunkIds ?? []) if (!(await this.hasChunk(auth.vault.vaultId, chunkId))) missingChunks.add(chunkId);
+      } else if (remote.currentRevision > local.currentRevision) download.push(descriptor(remote));
       else if (remote.currentRevision < local.currentRevision) {
         upload.push(local.objectId);
         for (const chunkId of local.chunkIds ?? []) if (!(await this.hasChunk(auth.vault.vaultId, chunkId))) missingChunks.add(chunkId);
@@ -379,6 +424,7 @@ export class FileSyncStore {
     if (input.baseRevision !== currentRevision) {
       const conflictId = `conf_${randomUUID()}`;
       auth.vault.conflicts[conflictId] = { conflictId, objectId: input.objectId, localRevision: input.baseRevision, remoteRevision: currentRevision, deviceId: auth.device.deviceId, createdAt: now(), status: "open" };
+      this.audit(auth.vault, auth.device.deviceId, "conflict_created", { conflictId, objectId: input.objectId });
       await this.persist();
       throw new SyncStoreError("revision_conflict", "Object changed on another device", 409, { conflictId, objectId: input.objectId, currentRevision });
     }
@@ -404,6 +450,7 @@ export class FileSyncStore {
     const response: SyncCommitResponse = { objectId: input.objectId, revision: revision.revision, serverSequence: revision.serverSequence, updatedAt: createdAt };
     auth.vault.operations[input.operationId] = response;
     auth.vault.changes.push(descriptor(object));
+    this.audit(auth.vault, auth.device.deviceId, "object_committed", { objectId: input.objectId, revision: revision.revision });
     await this.persist();
     return response;
   }
@@ -472,13 +519,65 @@ export class FileSyncStore {
     return snapshot;
   }
 
-  listSnapshots(auth: SyncAuthContext): StoredSnapshot[] { return Object.values(auth.vault.snapshots).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); }
+  listSnapshots(auth: SyncAuthContext): SyncSnapshotRecord[] { return Object.values(auth.vault.snapshots).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(publicSnapshot); }
+
+  listConflicts(auth: SyncAuthContext): SyncConflictRecord[] {
+    return Object.values(auth.vault.conflicts).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(publicConflict);
+  }
+
+  listAudit(auth: SyncAuthContext): SyncAuditRecord[] {
+    return [...(auth.vault.audit ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 200);
+  }
+
+  restorePlan(auth: SyncAuthContext, snapshotId: string): SyncRestorePlan {
+    const snapshot = auth.vault.snapshots[snapshotId];
+    if (!snapshot) throw new SyncStoreError("snapshot_not_found", "Snapshot not found", 404);
+    const affected: SyncRestorePlan["affected"] = [];
+    for (const [objectId, targetRevision] of Object.entries(snapshot.objects)) {
+      const current = auth.vault.objects[objectId];
+      if (!current || current.currentRevision === targetRevision) continue;
+      const historical = current.revisions.find((revision) => revision.revision === targetRevision);
+      if (historical) affected.push({ objectId, fromRevision: current.currentRevision, toRevision: targetRevision, deleted: historical.deleted });
+    }
+    for (const object of Object.values(auth.vault.objects)) {
+      if (snapshot.objects[object.objectId] !== undefined) continue;
+      if (!object.current.deleted) affected.push({ objectId: object.objectId, fromRevision: object.currentRevision, toRevision: 0, deleted: true });
+    }
+    return { snapshotId, affected };
+  }
+
+  async restoreSnapshot(auth: SyncAuthContext, snapshotId: string, confirm: boolean): Promise<{ restored: number; snapshotId: string }> {
+    if (!confirm) throw new SyncStoreError("confirmation_required", "Snapshot restore requires confirm=true", 400);
+    if (auth.device.role === "read_only") throw new SyncStoreError("read_only", "Read-only devices cannot restore snapshots", 403);
+    const plan = this.restorePlan(auth, snapshotId);
+    const recovery = await this.createSnapshot(auth, `before restore ${snapshotId}`);
+    for (const item of plan.affected) {
+      const object = auth.vault.objects[item.objectId];
+      const historical = object?.revisions.find((revision) => revision.revision === item.toRevision);
+      if (!object) continue;
+      if (item.toRevision > 0 && !historical) continue;
+      const createdAt = now();
+      const revision: StoredRevision = historical
+        ? { ...historical, revision: object.currentRevision + 1, baseRevision: object.currentRevision, serverSequence: auth.vault.sequence + 1, deviceId: auth.device.deviceId, createdAt, operationId: `restore_${randomUUID()}` }
+        : { revision: object.currentRevision + 1, baseRevision: object.currentRevision, serverSequence: auth.vault.sequence + 1, deviceId: auth.device.deviceId, createdAt, operationId: `restore_${randomUUID()}`, deleted: true, encryptedManifest: null, chunkIds: [] };
+      object.currentRevision = revision.revision;
+      object.current = revision;
+      object.revisions.push(revision);
+      auth.vault.sequence = revision.serverSequence;
+      auth.vault.changes.push(descriptor(object));
+      this.audit(auth.vault, auth.device.deviceId, "snapshot_object_restored", { objectId: item.objectId, snapshotId });
+    }
+    this.audit(auth.vault, auth.device.deviceId, "snapshot_restored", { snapshotId, restored: plan.affected.length, recoverySnapshotId: recovery.snapshotId });
+    await this.persist();
+    return { restored: plan.affected.length, snapshotId: recovery.snapshotId };
+  }
 
   async resolveConflict(auth: SyncAuthContext, conflictId: string, keepRevision: "local" | "remote"): Promise<void> {
     const conflict = auth.vault.conflicts[conflictId];
     if (!conflict || conflict.status !== "open") throw new SyncStoreError("conflict_not_found", "Conflict is not open", 404);
     if (keepRevision === "remote") conflict.status = "resolved";
     else throw new SyncStoreError("local_resolution_required", "Local resolution must submit a new revision from the client", 409);
+    this.audit(auth.vault, auth.device.deviceId, "conflict_resolved", { conflictId, keepRevision });
     await this.persist();
   }
 }

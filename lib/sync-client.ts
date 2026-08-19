@@ -5,7 +5,7 @@ import { encryptChunk, encryptJson, objectIdForPath, operationId, unwrapVaultKey
 import { getOrCreateLocalSyncDevice, localVaultKey, type LocalSyncDevice, writeLocalSyncDevice, createLocalVaultState, freshVaultKey } from "./sync-device.ts";
 import { readSyncJournal } from "./sync-journal.ts";
 import type { LocalSyncEntry, LocalSyncManifest } from "./sync-types.ts";
-import type { SyncAuthResponse, SyncCommitResponse, SyncObjectDescriptor, SyncPlanResponse } from "./sync-protocol.ts";
+import type { SyncAuthResponse, SyncAuditRecord, SyncCommitResponse, SyncConflictRecord, SyncObjectDescriptor, SyncPlanResponse, SyncRestorePlan, SyncSnapshotRecord } from "./sync-protocol.ts";
 import { getSyncDir, readLocalManifest, readSyncState, writeSyncState } from "./sync-state.ts";
 import { scanAgentData } from "./sync-scanner.ts";
 
@@ -152,8 +152,13 @@ export async function syncPlan(endpoint: string, agentDir: string, device: Local
   const objects = manifest.entries.map((entry) => {
     const objectId = objectIdForPath(vaultKey, entry.path);
     const current = journal.objects[objectId];
-    return { objectId, currentRevision: current?.revision ?? 0, deleted: false, chunkIds: current?.chunkIds ?? [] };
+    return { objectId, currentRevision: current?.revision ?? 0, deleted: false, changed: !current || current.deleted || current.sha256 !== entry.sha256, chunkIds: current?.chunkIds ?? [] };
   });
+  const present = new Set(objects.map((object) => object.objectId));
+  for (const previous of Object.values(journal.objects)) {
+    if (present.has(previous.objectId)) continue;
+    objects.push({ objectId: previous.objectId, currentRevision: previous.revision, deleted: true, changed: !previous.deleted, chunkIds: [] });
+  }
   return (await requestJson<SyncPlanResponse>(endpoint, "/v1/sync/plan", { method: "POST", body: JSON.stringify({ schemaVersion: 1, cursor: journal.cursor, objects }) }, device.deviceToken!)).value;
 }
 
@@ -169,6 +174,8 @@ export async function uploadLocalChanges(endpoint: string, agentDir: string, dev
     const objectId = objectIdForPath(vaultKey, entry.path);
     present.add(objectId);
     const baseRevision = journal.objects[objectId]?.revision ?? 0;
+    const known = journal.objects[objectId];
+    if (known && !known.deleted && known.sha256 === entry.sha256) continue;
     try {
       const result = await commitLocalEntry(endpoint, device, vaultKey, agentDir, entry, baseRevision);
       journal.objects[objectId] = { ...result.descriptor };
@@ -254,6 +261,38 @@ export async function buildLocalSyncDescriptor(agentDir: string, device: LocalSy
     const objectId = objectIdForPath(vaultKey, entry.path);
     return { objectId, currentRevision: journal.objects[objectId]?.revision ?? 0, deleted: false, chunkIds: journal.objects[objectId]?.chunkIds ?? [] };
   });
+}
+
+export async function listSyncDevices(endpoint: string, device: LocalSyncDevice): Promise<{ devices: Array<{ deviceId: string; name: string; role: string; publicKey: string; createdAt: string; lastSeenAt: string | null; status: string }> }> {
+  return (await requestJson<{ devices: Array<{ deviceId: string; name: string; role: string; publicKey: string; createdAt: string; lastSeenAt: string | null; status: string }> }>(endpoint, "/v1/devices", {}, device.deviceToken!)).value;
+}
+
+export async function updateSyncDevice(endpoint: string, device: LocalSyncDevice, deviceId: string, input: { action: "revoke" | "update"; name?: string; role?: "full" | "read_only" }): Promise<void> {
+  await requestJson(endpoint, `/v1/devices/${encodeURIComponent(deviceId)}`, { method: "PATCH", body: JSON.stringify(input) }, device.deviceToken!);
+}
+
+export async function listSyncConflicts(endpoint: string, device: LocalSyncDevice): Promise<{ conflicts: SyncConflictRecord[] }> {
+  return (await requestJson<{ conflicts: SyncConflictRecord[] }>(endpoint, "/v1/conflicts", {}, device.deviceToken!)).value;
+}
+
+export async function resolveSyncConflict(endpoint: string, device: LocalSyncDevice, conflictId: string, keepRevision: "local" | "remote"): Promise<void> {
+  await requestJson(endpoint, `/v1/conflicts/${encodeURIComponent(conflictId)}`, { method: "POST", body: JSON.stringify({ keepRevision }) }, device.deviceToken!);
+}
+
+export async function listSyncSnapshots(endpoint: string, device: LocalSyncDevice): Promise<{ snapshots: SyncSnapshotRecord[] }> {
+  return (await requestJson<{ snapshots: SyncSnapshotRecord[] }>(endpoint, "/v1/snapshots", {}, device.deviceToken!)).value;
+}
+
+export async function previewSyncRestore(endpoint: string, device: LocalSyncDevice, snapshotId: string): Promise<SyncRestorePlan> {
+  return (await requestJson<SyncRestorePlan>(endpoint, `/v1/snapshots/${encodeURIComponent(snapshotId)}/restore-plan`, { method: "POST", body: JSON.stringify({}) }, device.deviceToken!)).value;
+}
+
+export async function restoreSyncSnapshot(endpoint: string, device: LocalSyncDevice, snapshotId: string): Promise<{ restored: number; snapshotId: string }> {
+  return (await requestJson<{ restored: number; snapshotId: string }>(endpoint, `/v1/snapshots/${encodeURIComponent(snapshotId)}/restore`, { method: "POST", body: JSON.stringify({ confirm: true }) }, device.deviceToken!)).value;
+}
+
+export async function listSyncAudit(endpoint: string, device: LocalSyncDevice): Promise<{ events: SyncAuditRecord[] }> {
+  return (await requestJson<{ events: SyncAuditRecord[] }>(endpoint, "/v1/audit", {}, device.deviceToken!)).value;
 }
 
 export { requestJson };

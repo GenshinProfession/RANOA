@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { approvePairing, completePairing, createPairingCode, createVault, downloadRemoteChanges, getLocalSyncDevice, pairingStatus, requestPairing, syncPlan, uploadLocalChanges, requestJson } from "@/lib/sync-client";
+import { approvePairing, completePairing, createPairingCode, createVault, downloadRemoteChanges, getLocalSyncDevice, listSyncAudit, listSyncConflicts, listSyncDevices, listSyncSnapshots, pairingStatus, previewSyncRestore, requestPairing, resolveSyncConflict, restoreSyncSnapshot, syncPlan, updateSyncDevice, uploadLocalChanges } from "@/lib/sync-client";
 import type { LocalSyncDevice } from "@/lib/sync-device";
 import type { SyncAuthResponse } from "@/lib/sync-protocol";
 import { scanAgentData } from "@/lib/sync-scanner";
 import { readSyncState, summarizeScan, writeLocalManifest, writeSyncState } from "@/lib/sync-state";
+import { readWorkspaceMappings, writeWorkspaceMappings, type SyncWorkspaceMapping } from "@/lib/sync-workspaces";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,58 @@ export async function POST(request: Request) {
     if (action === "devices") {
       const device = await getLocalSyncDevice(agentDir);
       if (!device?.deviceToken) throw new Error("Pair this device before listing devices");
-      return NextResponse.json((await requestJson<{ devices: unknown[] }>(requiredString(body, "endpoint"), "/v1/devices", {}, device.deviceToken)).value);
+      return NextResponse.json(await listSyncDevices(requiredString(body, "endpoint"), device));
+    }
+
+    if (action === "device-update") {
+      const device = await getLocalSyncDevice(agentDir);
+      if (!device?.deviceToken) throw new Error("Pair this device before managing devices");
+      await updateSyncDevice(requiredString(body, "endpoint"), device, requiredString(body, "deviceId"), { action: body.deviceAction === "revoke" ? "revoke" : "update", name: typeof body.name === "string" ? body.name : undefined, role: body.role === "read_only" || body.role === "full" ? body.role : undefined });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === "conflicts") {
+      const device = await getLocalSyncDevice(agentDir);
+      if (!device?.deviceToken) throw new Error("Pair this device before listing conflicts");
+      return NextResponse.json(await listSyncConflicts(requiredString(body, "endpoint"), device));
+    }
+
+    if (action === "resolve-conflict") {
+      const device = await getLocalSyncDevice(agentDir);
+      if (!device?.deviceToken) throw new Error("Pair this device before resolving conflicts");
+      await resolveSyncConflict(requiredString(body, "endpoint"), device, requiredString(body, "conflictId"), body.keepRevision === "local" ? "local" : "remote");
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === "snapshots") {
+      const device = await getLocalSyncDevice(agentDir);
+      if (!device?.deviceToken) throw new Error("Pair this device before listing snapshots");
+      return NextResponse.json(await listSyncSnapshots(requiredString(body, "endpoint"), device));
+    }
+
+    if (action === "restore-preview") {
+      const device = await getLocalSyncDevice(agentDir);
+      if (!device?.deviceToken) throw new Error("Pair this device before previewing a restore");
+      return NextResponse.json(await previewSyncRestore(requiredString(body, "endpoint"), device, requiredString(body, "snapshotId")));
+    }
+
+    if (action === "restore") {
+      const device = await getLocalSyncDevice(agentDir);
+      if (!device?.deviceToken) throw new Error("Pair this device before restoring a snapshot");
+      return NextResponse.json(await restoreSyncSnapshot(requiredString(body, "endpoint"), device, requiredString(body, "snapshotId")));
+    }
+
+    if (action === "audit") {
+      const device = await getLocalSyncDevice(agentDir);
+      if (!device?.deviceToken) throw new Error("Pair this device before reading the audit log");
+      return NextResponse.json(await listSyncAudit(requiredString(body, "endpoint"), device));
+    }
+
+    if (action === "workspace-mappings") return NextResponse.json({ mappings: await readWorkspaceMappings(agentDir) });
+
+    if (action === "save-workspace-mappings") {
+      if (!Array.isArray(body.mappings)) throw new Error("mappings must be an array");
+      return NextResponse.json({ mappings: await writeWorkspaceMappings(agentDir, body.mappings as SyncWorkspaceMapping[]) });
     }
 
     if (action === "create-code") {

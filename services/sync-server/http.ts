@@ -97,8 +97,10 @@ async function handle(store: FileSyncStore, request: IncomingMessage, response: 
   }
   if (parts[1] === "devices" && parts.length === 3 && request.method === "PATCH") {
     const input = await readJson(request);
-    if (input.action !== "revoke") throw new SyncStoreError("invalid_request", "Only revoke is supported", 400);
-    await store.revokeDevice(await auth(store, request), parts[2]);
+    const context = await auth(store, request);
+    if (input.action === "revoke") await store.revokeDevice(context, parts[2]);
+    else if (input.action === "update") await store.updateDevice(context, parts[2], { name: typeof input.name === "string" ? input.name : undefined, role: input.role === "full" || input.role === "read_only" ? input.role : undefined });
+    else throw new SyncStoreError("invalid_request", "Unsupported device action", 400);
     sendJson(response, 200, { ok: true });
     return;
   }
@@ -165,11 +167,30 @@ async function handle(store: FileSyncStore, request: IncomingMessage, response: 
     return;
   }
 
+  if (parts[1] === "snapshots" && parts.length === 4 && parts[3] === "restore-plan" && request.method === "POST") {
+    sendJson(response, 200, store.restorePlan(await auth(store, request), parts[2]));
+    return;
+  }
+  if (parts[1] === "snapshots" && parts.length === 4 && parts[3] === "restore" && request.method === "POST") {
+    const input = await readJson(request);
+    sendJson(response, 200, await store.restoreSnapshot(await auth(store, request), parts[2], input.confirm === true));
+    return;
+  }
+
+  if (parts[1] === "conflicts" && parts.length === 2 && request.method === "GET") {
+    sendJson(response, 200, { conflicts: store.listConflicts(await auth(store, request)) });
+    return;
+  }
   if (parts[1] === "conflicts" && parts.length === 3 && parts[2] && request.method === "POST") {
     const input = await readJson(request);
     if (input.keepRevision !== "local" && input.keepRevision !== "remote") throw new SyncStoreError("invalid_request", "keepRevision must be local or remote", 400);
     await store.resolveConflict(await auth(store, request), parts[2], input.keepRevision);
     sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (parts[1] === "audit" && parts.length === 2 && request.method === "GET") {
+    sendJson(response, 200, { events: store.listAudit(await auth(store, request)) });
     return;
   }
 

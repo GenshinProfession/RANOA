@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useI18n } from "@/hooks/useI18n";
+import type { SyncAuditRecord, SyncConflictRecord, SyncSnapshotRecord } from "@/lib/sync-protocol";
 import type { SyncCategorySummary, SyncScanSummary, SyncState } from "@/lib/sync-types";
 
 interface SyncDevicePreview {
@@ -38,6 +39,7 @@ interface SyncActionResponse extends Partial<SyncResponse> {
   downloaded?: number;
   deleted?: number;
   conflicts?: number;
+  restored?: number;
   snapshotId?: string;
   error?: string;
 }
@@ -72,7 +74,7 @@ export function SyncSettings() {
   const [state, setState] = useState<SyncResponse>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
-  const [busyAction, setBusyAction] = useState<"create" | "pair" | "approve" | "plan" | "upload" | "download" | "code" | null>(null);
+  const [busyAction, setBusyAction] = useState<"create" | "pair" | "approve" | "plan" | "upload" | "download" | "code" | "details" | "restore" | null>(null);
   const [scanFeedback, setScanFeedback] = useState<"idle" | "complete">("idle");
   const [endpoint, setEndpoint] = useState("");
   const [deviceName, setDeviceName] = useState("RANOA device");
@@ -83,6 +85,10 @@ export function SyncSettings() {
   const [plan, setPlan] = useState<SyncPlan | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [devices, setDevices] = useState<Array<{ deviceId: string; name: string; role: string; status: string; lastSeenAt: string | null }>>([]);
+  const [conflicts, setConflicts] = useState<SyncConflictRecord[]>([]);
+  const [snapshots, setSnapshots] = useState<SyncSnapshotRecord[]>([]);
+  const [audit, setAudit] = useState<SyncAuditRecord[]>([]);
   const scanFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -195,6 +201,48 @@ export function SyncSettings() {
     setActionFeedback(t("sync.codeCreated"));
   });
 
+  const loadVaultDetails = useCallback(async () => {
+    if (!state.uploadEnabled || !endpoint.trim()) return;
+    setBusyAction("details");
+    try {
+      const [deviceResult, conflictResult, snapshotResult, auditResult] = await Promise.all([
+        runAction("devices", { endpoint: endpoint.trim() }),
+        runAction("conflicts", { endpoint: endpoint.trim() }),
+        runAction("snapshots", { endpoint: endpoint.trim() }),
+        runAction("audit", { endpoint: endpoint.trim() }),
+      ]);
+      setDevices((deviceResult as { devices?: typeof devices }).devices ?? []);
+      setConflicts((conflictResult as { conflicts?: SyncConflictRecord[] }).conflicts ?? []);
+      setSnapshots((snapshotResult as { snapshots?: SyncSnapshotRecord[] }).snapshots ?? []);
+      setAudit((auditResult as { events?: SyncAuditRecord[] }).events ?? []);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : t("sync.actionFailed")); }
+    finally { setBusyAction(null); }
+  }, [endpoint, runAction, state.uploadEnabled, t]);
+
+  useEffect(() => { if (state.uploadEnabled) void loadVaultDetails(); }, [loadVaultDetails, state.uploadEnabled]);
+
+  const resolveConflict = (conflictId: string) => void withAction("details", async () => {
+    await runAction("resolve-conflict", { endpoint: endpoint.trim(), conflictId, keepRevision: "remote" });
+    setConflicts((current) => current.filter((item) => item.conflictId !== conflictId));
+    setActionFeedback(t("sync.conflictResolved"));
+    await refreshPlanSilently();
+  });
+
+  const refreshPlanSilently = async () => {
+    if (!endpoint.trim()) return;
+    const result = await runAction("plan", { endpoint: endpoint.trim() });
+    setPlan(result as unknown as SyncPlan);
+  };
+
+  const restoreSnapshot = (snapshotId: string) => void withAction("restore", async () => {
+    const preview = await runAction("restore-preview", { endpoint: endpoint.trim(), snapshotId });
+    if (!window.confirm(t("sync.restoreConfirm", { count: (preview as { affected?: unknown[] }).affected?.length ?? 0 }))) return;
+    const result = await runAction("restore", { endpoint: endpoint.trim(), snapshotId });
+    setActionFeedback(t("sync.restoreComplete", { count: result.restored ?? 0 }));
+    await refreshPlanSilently();
+    await loadVaultDetails();
+  });
+
   const copy = (value: string) => { void navigator.clipboard?.writeText(value); setActionFeedback(t("sync.copied")); };
   const scanSummary: SyncScanSummary | null = state.lastScan;
   const categoryRows = useMemo(() => scanSummary?.categories ?? [], [scanSummary]);
@@ -248,6 +296,16 @@ export function SyncSettings() {
         {plan && <div className="sync-settings-plan"><div className="sync-settings-plan-heading"><div><strong>{t("sync.planTitle")}</strong><small>{t("sync.planDescription")}</small></div><span>{t("sync.cursor")} {plan.cursor}</span></div><div className="sync-settings-plan-grid"><div><strong>{plan.upload.length}</strong><small>{t("sync.toUpload")}</small></div><div><strong>{plan.download.length}</strong><small>{t("sync.toDownload")}</small></div><div><strong>{plan.conflicts.length}</strong><small>{t("sync.conflicts")}</small></div><div><strong>{plan.missingChunks.length}</strong><small>{t("sync.missingChunks")}</small></div></div><div className="sync-settings-plan-actions"><button type="button" className="sync-settings-primary-button" onClick={upload} disabled={busyAction !== null || plan.conflicts.length > 0}>{busyAction === "upload" ? t("sync.working") : t("sync.uploadChanges")}</button><button type="button" className="sync-settings-secondary-button" onClick={download} disabled={busyAction !== null || plan.conflicts.length > 0}>{busyAction === "download" ? t("sync.working") : t("sync.downloadChanges")}</button></div>{plan.conflicts.length > 0 && <p className="sync-settings-plan-warning">{t("sync.planConflictWarning", { count: plan.conflicts.length })}</p>}</div>}
         {scanSummary && <details className="sync-settings-excluded"><summary><span>{t("sync.excludedTitle", { count: scanSummary.skipped.length })}</span><span className="sync-settings-details-chevron">⌄</span></summary><div className="sync-settings-excluded-list">{scanSummary.skipped.map((item) => <span key={item.path}><code>{item.path}</code><small>{t(`sync.excludedReason.${item.reason}`)}</small></span>)}</div></details>}
       </section>
+
+      {connected && <section className="sync-settings-ops">
+        <div className="sync-settings-section-heading"><div><h3>{t("sync.operationsTitle")}</h3><p>{t("sync.operationsDescription")}</p></div><button type="button" className="sync-settings-text-button" onClick={() => void loadVaultDetails()} disabled={busyAction !== null}>{busyAction === "details" ? t("sync.working") : t("sync.refreshDetails")}</button></div>
+        <div className="sync-settings-ops-grid">
+          <div className="sync-settings-ops-card"><div className="sync-settings-ops-card-heading"><strong>{t("sync.devicesTitle")}</strong><span>{devices.length}</span></div>{devices.map((device) => <div className="sync-settings-ops-row" key={device.deviceId}><span><b>{device.name}</b><small>{device.role} · {device.status}</small></span>{device.deviceId !== state.device?.deviceId && device.status === "active" && <button type="button" className="sync-settings-danger-button" onClick={() => void withAction("details", async () => { await runAction("device-update", { endpoint: endpoint.trim(), deviceId: device.deviceId, deviceAction: "revoke" }); setDevices((current) => current.map((item) => item.deviceId === device.deviceId ? { ...item, status: "revoked" } : item)); })}>{t("sync.revoke")}</button>}</div>)}</div>
+          <div className={`sync-settings-ops-card${conflicts.length ? " has-warning" : ""}`}><div className="sync-settings-ops-card-heading"><strong>{t("sync.conflictCenter")}</strong><span>{conflicts.length}</span></div>{conflicts.length ? conflicts.slice(0, 3).map((conflict) => <div className="sync-settings-ops-row" key={conflict.conflictId}><span><b>{shortId(conflict.objectId)}</b><small>{t("sync.conflictRevision", { local: conflict.localRevision, remote: conflict.remoteRevision })}</small></span><button type="button" className="sync-settings-secondary-button" onClick={() => resolveConflict(conflict.conflictId)} disabled={busyAction !== null}>{t("sync.keepRemote")}</button></div>) : <p className="sync-settings-ops-empty">{t("sync.noConflicts")}</p>}</div>
+          <div className="sync-settings-ops-card"><div className="sync-settings-ops-card-heading"><strong>{t("sync.snapshotsTitle")}</strong><span>{snapshots.length}</span></div>{snapshots.length ? snapshots.slice(0, 3).map((snapshot) => <div className="sync-settings-ops-row" key={snapshot.snapshotId}><span><b>{snapshot.label}</b><small>{snapshot.objectCount} · {new Date(snapshot.createdAt).toLocaleString()}</small></span><button type="button" className="sync-settings-secondary-button" onClick={() => restoreSnapshot(snapshot.snapshotId)} disabled={busyAction !== null}>{busyAction === "restore" ? t("sync.working") : t("sync.restore")}</button></div>) : <p className="sync-settings-ops-empty">{t("sync.noSnapshots")}</p>}</div>
+        </div>
+        {audit.length > 0 && <details className="sync-settings-audit"><summary>{t("sync.auditTitle", { count: audit.length })}</summary><div>{audit.slice(0, 6).map((event) => <span key={event.eventId}><b>{event.action}</b><small>{new Date(event.createdAt).toLocaleString()}</small></span>)}</div></details>}
+      </section>}
 
       <section className="sync-settings-safety"><span className="sync-settings-safety-icon" aria-hidden="true">✦</span><div><strong>{t("sync.safetyTitle")}</strong><small>{t("sync.safetyDescription")}</small></div><span className="sync-settings-lock">{connected ? t("sync.encryptedTransport") : t("sync.uploadDisabled")}</span></section>
       {actionFeedback && <p className="sync-settings-feedback" role="status">✦ {actionFeedback}</p>}

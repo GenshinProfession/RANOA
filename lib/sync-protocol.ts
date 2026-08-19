@@ -36,7 +36,7 @@ export interface SyncObjectDescriptor {
 export interface SyncPlanRequest {
   schemaVersion: number;
   cursor: number;
-  objects: Array<Pick<SyncObjectDescriptor, "objectId" | "currentRevision" | "deleted">>;
+  objects: Array<Pick<SyncObjectDescriptor, "objectId" | "currentRevision" | "deleted"> & { changed?: boolean; chunkIds?: string[] }>;
 }
 
 export interface SyncPlanResponse {
@@ -46,6 +46,37 @@ export interface SyncPlanResponse {
   download: SyncObjectDescriptor[];
   conflicts: Array<{ conflictId: string; objectId: string; localRevision: number; remoteRevision: number }>;
   missingChunks: string[];
+}
+
+export interface SyncConflictRecord {
+  conflictId: string;
+  objectId: string;
+  localRevision: number;
+  remoteRevision: number;
+  deviceId: string;
+  createdAt: string;
+  status: "open" | "resolved";
+}
+
+export interface SyncSnapshotRecord {
+  snapshotId: string;
+  createdAt: string;
+  createdBy: string;
+  label: string;
+  objectCount: number;
+}
+
+export interface SyncRestorePlan {
+  snapshotId: string;
+  affected: Array<{ objectId: string; fromRevision: number; toRevision: number; deleted: boolean }>;
+}
+
+export interface SyncAuditRecord {
+  eventId: string;
+  action: string;
+  deviceId: string;
+  createdAt: string;
+  details?: Record<string, string | number | boolean>;
 }
 
 export interface SyncCommitRequest {

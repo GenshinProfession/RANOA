@@ -32,6 +32,7 @@
     "dev:harness": "node scripts/dev-harness.mjs",
     "smoke:harness": "node scripts/harness-live-smoke.mjs",
     "sync:server": "node --experimental-strip-types services/sync-server/index.ts",
+    "sync:agent": "node --experimental-strip-types services/sync-agent.ts",
     "dev:lan": "next dev -H 0.0.0.0 -p 30141",
     "build": "next build --webpack",
     "start": "next start -H 127.0.0.1 -p 30141",
