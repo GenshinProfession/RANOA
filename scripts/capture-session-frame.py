@@ -31,6 +31,7 @@ with sync_playwright() as playwright:
       const frame = getComputedStyle(node, '::before');
       const innerPlate = getComputedStyle(node, '::after');
       const box = node.getBoundingClientRect();
+      const copyBox = node.querySelector('.session-item-title')?.parentElement?.getBoundingClientRect();
       return {
         wallpaper: document.documentElement.dataset.wallpaper || null,
         box: { x: box.x, y: box.y, width: box.width, height: box.height },
@@ -65,18 +66,22 @@ with sync_playwright() as playwright:
         innerPlate: {
           content: innerPlate.content,
         },
+        copyBox: copyBox ? { y: copyBox.y, height: copyBox.height } : null,
       };
     }""")
     assert metrics["frame"]["inset"] == "0px"
     assert abs(float(metrics["frame"]["width"].removesuffix("px")) - metrics["box"]["width"]) < 0.1
     assert abs(float(metrics["frame"]["height"].removesuffix("px")) - metrics["box"]["height"]) < 0.1
-    assert metrics["card"]["aspectRatio"] == "1986 / 792"
+    assert metrics["card"]["aspectRatio"] == "1600 / 500"
     assert metrics["card"]["backgroundColor"] == "rgba(0, 0, 0, 0)"
     assert metrics["card"]["backgroundImage"] == "none"
     assert metrics["card"]["boxShadow"] == "none"
     assert metrics["innerPlate"]["content"] == "none"
-    assert abs(metrics["box"]["width"] / metrics["box"]["height"] - 1986 / 792) < 0.01
-    assert "destiny-frame-v1.png" in metrics["frame"]["backgroundImage"]
+    assert abs(metrics["box"]["width"] / metrics["box"]["height"] - 1600 / 500) < 0.01
+    assert metrics["copyBox"] is not None
+    card_center = metrics["box"]["y"] + metrics["box"]["height"] / 2
+    copy_center = metrics["copyBox"]["y"] + metrics["copyBox"]["height"] / 2
+    assert abs(card_center - copy_center) < 2
     assert metrics["frame"]["backgroundSize"] == "100% 100%"
     assert metrics["frame"]["borderImageSource"] == "none"
     (OUTPUT / "metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -85,6 +90,8 @@ with sync_playwright() as playwright:
     for theme in ("roxy", "sylphiette", "eris"):
         page.evaluate("theme => { document.documentElement.dataset.wallpaper = theme; }", theme)
         page.wait_for_timeout(100)
+        theme_image = card.evaluate("node => getComputedStyle(node, '::before').backgroundImage")
+        assert f"session-frame-{theme}.png" in theme_image
         card.screenshot(path=str(OUTPUT / f"session-card-{theme}.png"))
     page.evaluate("theme => { document.documentElement.dataset.wallpaper = theme; }", original_theme)
     card.hover()

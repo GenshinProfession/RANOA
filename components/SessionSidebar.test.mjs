@@ -6,23 +6,23 @@ const source = await readFile(new URL("./SessionSidebar.tsx", import.meta.url), 
 const magicPolish = await readFile(new URL("../app/magic-polish.css", import.meta.url), "utf8");
 const sessionItemSource = source.slice(source.indexOf("function SessionItem("));
 
-test("lets each session card follow the ornament's native aspect ratio", () => {
-  const frameAssetUses = magicPolish.match(/destiny-frame-v1\.png/g) ?? [];
-
-  assert.equal(frameAssetUses.length, 1);
+test("uses compact character-specific session frames with one centered safe area", () => {
+  for (const theme of ["roxy", "sylphiette", "eris"]) {
+    assert.match(
+      magicPolish,
+      new RegExp(`data-wallpaper=\\"${theme}\\"[\\s\\S]*?session-frame-${theme}\\.png`),
+    );
+  }
   assert.match(
     magicPolish,
     /\.session-item::before,[\s\S]*?inset:\s*0 !important;[\s\S]*?width:\s*100% !important;[\s\S]*?height:\s*100% !important;/,
   );
-  assert.match(magicPolish, /aspect-ratio:\s*1986 \/ 792;/);
-  assert.match(
-    magicPolish,
-    /background-image:\s*url\('\/ui\/sidebar\/destiny-frame-v1\.png'\) !important;/,
-  );
+  assert.match(magicPolish, /aspect-ratio:\s*1600 \/ 500;/);
+  assert.match(magicPolish, /background-image:\s*var\(--session-frame-image\) !important;/);
   assert.match(magicPolish, /background-size:\s*100% 100% !important;/);
   assert.match(magicPolish, /\.session-item \{[\s\S]*?background:\s*transparent !important;[\s\S]*?box-shadow:\s*none !important;/);
   assert.match(magicPolish, /\.session-item\.is-selected::after \{\s*content:\s*none !important;/);
-  assert.doesNotMatch(magicPolish, /border-image-source:\s*url\('\/ui\/sidebar\/destiny-frame-v1\.png'\)/);
+  assert.doesNotMatch(magicPolish, /destiny-frame-v1\.png/);
   assert.doesNotMatch(magicPolish, /background-size:\s*100% (?:188|212)%/);
 });
 

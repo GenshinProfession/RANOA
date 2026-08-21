@@ -881,10 +881,26 @@ html[data-wallpaper] .app-shell-sidebar .sidebar-new-session:focus-visible::afte
   transform: translateX(-50%) translateY(-3px) scale(1.08);
 }
 
-/* Destiny-card material. Preserve the artwork's native 1986:792 silhouette:
-   the card follows the frame instead of compressing or nine-slicing it. */
+/* Character-specific conversation frames share one compact 16:5 canvas and
+   one text safe area, so switching wallpaper changes the artifact without
+   changing the list rhythm. */
 html[data-wallpaper] .app-shell-sidebar .session-list > * {
   min-width: 0;
+}
+
+html[data-wallpaper="roxy"] .app-shell-sidebar .session-item {
+  --session-frame-image: url('/ui/sidebar/session-frame-roxy.png');
+  --session-frame-glow: rgba(100, 161, 255, .42);
+}
+
+html[data-wallpaper="sylphiette"] .app-shell-sidebar .session-item {
+  --session-frame-image: url('/ui/sidebar/session-frame-sylphiette.png');
+  --session-frame-glow: rgba(129, 222, 187, .36);
+}
+
+html[data-wallpaper="eris"] .app-shell-sidebar .session-item {
+  --session-frame-image: url('/ui/sidebar/session-frame-eris.png');
+  --session-frame-glow: rgba(255, 102, 55, .42);
 }
 
 html[data-wallpaper] .app-shell-sidebar .session-item {
@@ -894,9 +910,9 @@ html[data-wallpaper] .app-shell-sidebar .session-item {
   max-width: 100%;
   height: auto !important;
   min-height: 0 !important;
-  aspect-ratio: 1986 / 792;
+  aspect-ratio: 1600 / 500;
   margin: 5px 1px !important;
-  padding: 27px 30px 24px !important;
+  padding: 14px 28px 13px !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -914,12 +930,12 @@ html[data-wallpaper] .app-shell-sidebar .session-item.is-selected::before {
   width: 100% !important;
   height: 100% !important;
   border: 0 !important;
-  background-image: url('/ui/sidebar/destiny-frame-v1.png') !important;
+  background-image: var(--session-frame-image) !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
   background-size: 100% 100% !important;
   content: "";
-  opacity: .48;
+  opacity: .58;
   pointer-events: none !important;
   filter: saturate(.78) brightness(.82);
   transform: none !important;
@@ -934,6 +950,7 @@ html[data-wallpaper] .app-shell-sidebar .session-item.is-selected::after {
 html[data-wallpaper] .app-shell-sidebar .session-item > * {
   position: relative !important;
   z-index: 2 !important;
+  align-self: center !important;
 }
 
 html[data-wallpaper] .app-shell-sidebar .session-item:hover {
@@ -955,8 +972,8 @@ html[data-wallpaper] .app-shell-sidebar .session-item.is-selected {
 }
 
 html[data-wallpaper] .app-shell-sidebar .session-item.is-selected::before {
-  filter: saturate(1.08) brightness(1.02) drop-shadow(0 0 5px color-mix(in srgb, var(--sidebar-mystic-crimson) 32%, transparent));
-  opacity: .82;
+  filter: saturate(1.06) brightness(1.04) drop-shadow(0 0 5px var(--session-frame-glow));
+  opacity: .9;
 }
 
 /* Archive rows are connected by a fine magical current. File-type glyphs stay
