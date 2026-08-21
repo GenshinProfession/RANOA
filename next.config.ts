@@ -13,6 +13,7 @@ try {
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  devIndicators: false,
   outputFileTracingRoot: configDir,
   serverExternalPackages: [
     "undici",

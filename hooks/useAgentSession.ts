@@ -495,6 +495,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
 
       try {
         const stateRes = await fetch(`/api/sessions/${encodeURIComponent(sid)}/state`);
+        // The session can disappear between the read-only JSONL request above
+        // and this live-state request (delete, worktree cleanup, or a sidebar
+        // refresh selecting a newer session). Treat that race as an idle,
+        // unavailable runtime instead of surfacing a recoverable 404 in the
+        // Next.js error overlay.
+        if (stateRes.status === 404) {
+          if (sessionIdRef.current === sid) {
+            setQueuedMessages({ steering: [], followUp: [] });
+          }
+          return null;
+        }
         if (!stateRes.ok) throw new Error(`HTTP ${stateRes.status}`);
         const agentState = await stateRes.json() as { running: boolean; state?: AgentStateResponse };
         if (sessionIdRef.current !== sid) return null;

@@ -12,6 +12,19 @@ const chatWindowSource = await readNormalizedSource("../components/ChatWindow.ts
 const chatInputSource = await readNormalizedSource("../components/ChatInput.tsx");
 const appShellSource = await readNormalizedSource("../components/AppShell.tsx");
 
+test("treats a vanished live session state as a recoverable race", () => {
+  const loadSource = source.slice(
+    source.indexOf("  const loadSession = useCallback"),
+    source.indexOf("  const loadContext = useCallback"),
+  );
+  assert.match(loadSource, /stateRes\.status === 404/);
+  assert.match(loadSource, /setQueuedMessages\(\{ steering: \[\], followUp: \[\] \}\)/);
+  assert.doesNotMatch(
+    loadSource.slice(loadSource.indexOf("if (stateRes.status === 404)"), loadSource.indexOf("if (!stateRes.ok)")),
+    /throw new Error/,
+  );
+});
+
 test("keeps the session event stream open through the idle grace window", () => {
   const finishSource = source.slice(
     source.indexOf("const finishPromptWithoutStream"),
@@ -433,7 +446,7 @@ test("keeps prompt anchor measurement outside the React update cycle", () => {
   assert.match(anchorLifecycleEffectSource, /promptAnchorMeasureFrameRef\.current = requestAnimationFrame\(\(\) => \{\s*promptAnchorMeasureFrameRef\.current = null;\s*updatePromptAnchorSpacer\(\)/);
   assert.match(anchorLifecycleEffectSource, /disposed = true;[\s\S]*?promptAnchorUpdateRef\.current === updatePromptAnchorSpacer[\s\S]*?cancelAnimationFrame\(promptAnchorMeasureFrameRef\.current\)/);
   assert.match(anchorSyncEffectSource, /promptAnchorUpdateRef\.current\?\.\(\);\s*\}, \[streamState\.streamingMessage\]\)/);
-  assert.match(chatWindowSource, /<div ref=\{messageContentRef\} style=\{\{/);
+  assert.match(chatWindowSource, /<div ref=\{messageContentRef\}(?: className="[^"]+")? style=\{\{/);
 });
 
 test("uses the prompt anchor as the only trailing message spacer", () => {

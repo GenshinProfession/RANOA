@@ -365,12 +365,14 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
 
   return (
     <div
+      className="chat-message chat-message-user"
       style={{ marginBottom: 16, display: "flex", flexDirection: "column", alignItems: "flex-end" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <div style={{ display: "flex", alignItems: "flex-end", gap: 6, maxWidth: "85%" }}>
         <div
+          className="chat-message-bubble chat-message-user-bubble"
           style={{
             flex: 1,
             minWidth: 0,
@@ -391,6 +393,8 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
               {imageBlocksNode}
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
                 <button
+                  type="button"
+                  className="chat-user-command-toggle"
                   onClick={() => setExpanded((prev) => !prev)}
                   title={expanded ? t("i18n.collapse") : t("i18n.expand")}
                   aria-expanded={expanded}
@@ -442,7 +446,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
                 )}
               </div>
               {expanded && (
-                <MarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>{content}</MarkdownBody>
+                <MarkdownBody className="markdown-user-message chat-user-expanded-content" cwd={cwd} onOpenFile={onOpenFile}>{content}</MarkdownBody>
               )}
             </div>
           ) : (
@@ -719,6 +723,7 @@ function AssistantMessageView({
 
   return (
     <div
+      className={`chat-message chat-message-assistant${isStreaming ? " is-streaming" : ""}`}
       style={{ marginBottom: 16 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -773,6 +778,7 @@ function AssistantMessageView({
 
       {providerError && (
         <div
+          className="chat-provider-error"
           role="alert"
           style={{
             marginTop: blocks.length > 0 ? 8 : 0,
@@ -900,6 +906,7 @@ function ThinkingBlock({ block, duration, sessionId, entryId, blockIndex }: {
 
   return (
     <div
+      className={`chat-thinking-block${expanded ? " is-expanded" : ""}`}
       style={{
         border: "1px solid var(--border)",
         borderRadius: 6,
@@ -908,7 +915,10 @@ function ThinkingBlock({ block, duration, sessionId, entryId, blockIndex }: {
       }}
     >
       <button
+        type="button"
+        className="chat-thinking-toggle"
         onClick={() => void toggle()}
+        aria-expanded={expanded}
         style={{
           display: "flex",
           alignItems: "center",
@@ -927,9 +937,13 @@ function ThinkingBlock({ block, duration, sessionId, entryId, blockIndex }: {
         {duration !== undefined && (
           <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-dim)", fontVariantNumeric: "tabular-nums" }}>{duration}s</span>
         )}
+        <svg className="chat-thinking-chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="2 3.5 5 6.5 8 3.5" />
+        </svg>
       </button>
       {expanded && (
         <div
+          className="chat-thinking-content"
           style={{
             padding: "8px 10px",
             color: error ? "#f87171" : "var(--text-muted)",
@@ -965,6 +979,7 @@ function ToolCallBlock({ block, result, duration }: { block: ToolCallContent; re
 
   return (
     <div
+      className={`chat-tool-call-block${expanded ? " is-expanded" : ""}`}
       style={{
         borderRadius: 7,
         overflow: "hidden",
@@ -975,7 +990,10 @@ function ToolCallBlock({ block, result, duration }: { block: ToolCallContent; re
     >
       {/* ── Tool call header ── */}
       <button
+        type="button"
+        className="chat-tool-call-toggle"
         onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
         style={{
           display: "flex",
           alignItems: "center",
@@ -991,16 +1009,16 @@ function ToolCallBlock({ block, result, duration }: { block: ToolCallContent; re
           minWidth: 0,
         }}
       >
-        <span style={{ color: isError ? "#f87171" : "#16a34a", fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, flexShrink: 0 }}>
+        <span className="chat-tool-call-name" style={{ color: isError ? "#f87171" : "#16a34a", fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, flexShrink: 0 }}>
           {block.toolName}
         </span>
-        <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+        <span className="chat-tool-call-preview" style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
           {isStreamingInput ? t("chat.generatingToolInput") : getToolPreview(block)}
         </span>
         {duration !== undefined && (
           <span style={{ fontSize: 11, color: "var(--text-dim)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{duration}s</span>
         )}
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--text-dim)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+        <svg className="chat-tool-call-chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--text-dim)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
           <polyline points="2 3.5 5 6.5 8 3.5" />
         </svg>
       </button>
@@ -1008,6 +1026,7 @@ function ToolCallBlock({ block, result, duration }: { block: ToolCallContent; re
       {/* ── Expanded: input args ── */}
       {expanded && (isStreamingInput || !isEditTool) && (
         <pre
+          className="chat-tool-call-input"
           style={{
             margin: 0,
             padding: "8px 10px",
@@ -1052,6 +1071,7 @@ function PairedDiffResult({ diff }: {
 }) {
   return (
     <div
+      className="chat-tool-call-result"
       style={{
         borderTop: "1px solid rgba(34,197,94,0.15)",
         background: "var(--bg)",

@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RANOA Companion</title>
+    <style>
+      @font-face { font-family: "Ranoa Xiaowei"; src: url("../node_modules/@fontsource/zcool-xiaowei/files/zcool-xiaowei-chinese-simplified-400-normal.woff2") format("woff2"); font-display: swap; }
+      :root { color-scheme: dark; --pet-rgb: 101, 180, 255; --pet-secondary-rgb: 139, 126, 255; --pet-gold-rgb: 224, 194, 121; --pet-deep-rgb: 7, 18, 48; }
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+      body { user-select: none; -webkit-app-region: no-drag; font-family: "Segoe UI Variable", "Microsoft YaHei UI", sans-serif; }
+      body[data-theme="sylphiette"] { --pet-rgb: 139, 226, 194; --pet-secondary-rgb: 220, 243, 195; --pet-gold-rgb: 221, 202, 143; --pet-deep-rgb: 6, 42, 36; }
+      body[data-theme="eris"] { --pet-rgb: 255, 105, 70; --pet-secondary-rgb: 255, 183, 84; --pet-gold-rgb: 232, 170, 82; --pet-deep-rgb: 52, 10, 16; }
+
+      .pet-stage { position: absolute; right: -53px; bottom: 0; width: 326px; height: 426px; isolation: isolate; scale: .65; transform-origin: 50% 100%; animation: companion-float 4.2s ease-in-out infinite; }
+      .aura { position: absolute; z-index: 0; left: 50%; bottom: 22px; width: 278px; height: 278px; border-radius: 50%; transform: translateX(-50%) scaleY(.36); background: radial-gradient(circle, rgba(var(--pet-rgb), .4) 0 8%, transparent 9% 23%, rgba(var(--pet-rgb), .17) 24% 25%, transparent 26% 43%, rgba(var(--pet-gold-rgb), .25) 44% 45%, transparent 46%), conic-gradient(from 20deg, transparent, rgba(var(--pet-rgb), .5), transparent 18%, rgba(var(--pet-gold-rgb), .36), transparent 43%, rgba(var(--pet-secondary-rgb), .42), transparent 71%); filter: blur(.2px) drop-shadow(0 0 16px rgba(var(--pet-rgb), .4)); opacity: .78; animation: aura-turn 13s linear infinite; }
+      .aura::before, .aura::after { content: ""; position: absolute; inset: 14%; border: 1px solid rgba(var(--pet-gold-rgb), .38); border-radius: 50%; clip-path: polygon(50% 0, 61% 34%, 100% 50%, 64% 61%, 50% 100%, 38% 64%, 0 50%, 36% 38%); }
+      .aura::after { inset: 27%; border-color: rgba(var(--pet-rgb), .72); transform: rotate(45deg); }
+      .halo { position: absolute; z-index: 0; left: 50%; top: 64px; width: 238px; height: 238px; border-radius: 50%; transform: translateX(-50%); opacity: .5; background: repeating-conic-gradient(from 0deg, rgba(var(--pet-gold-rgb), .5) 0 1deg, transparent 1deg 15deg), radial-gradient(circle, transparent 46%, rgba(var(--pet-rgb), .34) 47% 48%, transparent 49% 61%, rgba(var(--pet-gold-rgb), .22) 62% 63%, transparent 64%); mask-image: radial-gradient(circle, transparent 0 40%, #000 41% 67%, transparent 68%); filter: drop-shadow(0 0 10px rgba(var(--pet-rgb), .4)); animation: halo-turn 24s linear infinite; }
+      .companion-wrap { position: absolute; z-index: 3; inset: 4px 0 14px; display: flex; align-items: flex-end; justify-content: center; cursor: pointer; -webkit-app-region: no-drag; transition: opacity .22s ease, filter .3s ease, transform .32s cubic-bezier(.2, .8, .2, 1); }
+      .companion-wrap:hover { transform: translateY(-4px) scale(1.012); filter: brightness(1.07); }
+      .companion-wrap:focus-visible { outline: 2px solid rgba(var(--pet-secondary-rgb), .85); outline-offset: -38px; border-radius: 50%; }
+      .companion { position: absolute; left: 50%; bottom: 0; display: block; width: auto; height: 407px; max-width: 320px; object-fit: contain; object-position: center bottom; pointer-events: none; opacity: 0; transform: translateX(-50%) translateY(9px) scale(.965); filter: blur(5px) drop-shadow(0 12px 10px rgba(var(--pet-deep-rgb), .54)) drop-shadow(0 0 11px rgba(var(--pet-rgb), .3)); transition: opacity .36s ease, transform .46s cubic-bezier(.2,.85,.2,1), filter .42s ease; }
+      .companion.is-active { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); filter: drop-shadow(0 12px 10px rgba(var(--pet-deep-rgb), .54)) drop-shadow(0 0 11px rgba(var(--pet-rgb), .3)); }
+      body[data-theme="roxy"] .companion { height: 402px; }
+      body[data-theme="sylphiette"] .companion { height: 412px; }
+      body[data-theme="eris"] .companion { height: 418px; }
+      .ground-glow { position: absolute; z-index: 2; left: 50%; bottom: 9px; width: 224px; height: 28px; border-radius: 50%; transform: translateX(-50%); background: radial-gradient(ellipse, rgba(var(--pet-rgb), .5), rgba(var(--pet-rgb), .14) 43%, transparent 72%); filter: blur(4px); animation: glow-breathe 2.8s ease-in-out infinite; }
+
+      .mote { --x: 40px; --delay: 0s; position: absolute; z-index: 5; left: 50%; bottom: 52px; width: 4px; height: 4px; border-radius: 50%; background: rgb(var(--pet-secondary-rgb)); box-shadow: 0 0 8px 2px rgba(var(--pet-rgb), .74); opacity: 0; animation: mote-rise 3.6s var(--delay) ease-out infinite; }
+      .mote:nth-of-type(1) { --x: -106px; --delay: -.4s; }
+      .mote:nth-of-type(2) { --x: 98px; --delay: -1.7s; width: 3px; height: 3px; }
+      .mote:nth-of-type(3) { --x: -72px; --delay: -2.5s; }
+      .mote:nth-of-type(4) { --x: 74px; --delay: -.9s; width: 2px; height: 2px; }
+      .mote:nth-of-type(5) { --x: 121px; --delay: -3.1s; }
+      .state-orb { position: absolute; z-index: 18; right: 18px; top: 80px; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(var(--pet-gold-rgb), .48); border-radius: 50%; background: radial-gradient(circle, rgba(var(--pet-rgb), .42), rgba(var(--pet-deep-rgb), .82) 63%); box-shadow: inset 0 0 12px rgba(var(--pet-rgb), .22), 0 0 14px rgba(var(--pet-rgb), .22); color: rgb(var(--pet-secondary-rgb)); font-size: 15px; opacity: 0; transform: scale(.72); cursor: pointer; -webkit-app-region: no-drag; transition: opacity .25s ease, transform .32s cubic-bezier(.2, .9, .2, 1.35); }
+      body[data-state="working"] .state-orb, body[data-state="thinking"] .state-orb, body[data-state="tool"] .state-orb, body[data-state="done"] .state-orb, body[data-state="error"] .state-orb, body.has-message .state-orb { opacity: 1; transform: scale(1); }
+      body[data-state="working"] .state-orb::before { content: "◇"; animation: working-orbit 1.5s ease-in-out infinite; }
+      body[data-state="thinking"] .state-orb::before { content: "✦"; animation: glyph-pulse 1.1s ease-in-out infinite; }
+      body[data-state="tool"] .state-orb::before { content: "⌁"; animation: glyph-turn .8s linear infinite; }
+      body[data-state="done"] .state-orb::before { content: "✓"; }
+      body[data-state="error"] .state-orb::before { content: "!"; }
+      body.has-message[data-state="idle"] .state-orb::before { content: "✦"; animation: message-beacon 1.8s ease-in-out infinite; }
+      body[data-state="working"] .pet-stage { animation: working-standby 2.2s ease-in-out infinite; }
+      body[data-state="working"] .halo { opacity: .84; animation-duration: 11s; }
+      body[data-state="working"] .aura { opacity: .9; animation-duration: 8s; }
+      body[data-state="thinking"] .halo { opacity: .92; animation-duration: 7s; }
+      body[data-state="thinking"] .aura { opacity: 1; filter: brightness(1.18) drop-shadow(0 0 21px rgba(var(--pet-rgb), .62)); }
+      body[data-state="tool"] .pet-stage { animation: tool-focus 1.25s ease-in-out infinite; }
+      body[data-state="tool"] .halo { opacity: 1; animation-duration: 3.8s; }
+      body[data-state="tool"] .mote { animation-duration: 1.45s; }
+      body[data-state="done"] .pet-stage { animation: companion-done .82s cubic-bezier(.17, .82, .26, 1); }
+      body[data-state="done"] .ground-glow { filter: blur(2px) brightness(1.65); }
+      body[data-state="done"] .mote { animation-duration: .9s; }
+      body[data-state="error"] .pet-stage { animation: companion-error .5s ease-in-out 2; }
+      body[data-state="error"] .companion { filter: drop-shadow(0 0 12px rgba(255, 74, 74, .68)); }
+      body[data-state="working"] .companion.is-active, body[data-state="thinking"] .companion.is-active { animation: pose-reading 2.8s ease-in-out infinite; }
+      body[data-state="tool"] .companion.is-active { animation: pose-casting 1.25s ease-in-out infinite; }
+      body[data-state="done"] .companion.is-active { animation: pose-arrival .56s cubic-bezier(.2,.9,.25,1.2); }
+      body.is-dragging .pet-stage { animation: none !important; }
+      body.is-dragging .companion-wrap, body.is-dragging .companion-wrap:hover { cursor: grabbing; transform: none; filter: none; transition: none; }
+
+      .pet-bubble { position: absolute; z-index: 60; top: 25px; left: 16px; width: 322px; max-height: 286px; padding: 18px 18px 14px; border: 1px solid rgba(var(--pet-gold-rgb), .62); border-radius: 20px 10px 20px 20px; color: rgba(245, 249, 255, .96); background: linear-gradient(145deg, rgba(var(--pet-deep-rgb), .97), rgba(var(--pet-deep-rgb), .88)); box-shadow: 0 18px 42px rgba(0,0,0,.42), inset 0 1px rgba(255,255,255,.08), 0 0 24px rgba(var(--pet-rgb), .2); backdrop-filter: blur(16px) saturate(130%); opacity: 0; pointer-events: none; transform: translateX(22px) scale(.94); transform-origin: 100% 55%; -webkit-app-region: no-drag; transition: opacity .22s ease, transform .34s cubic-bezier(.2,.9,.24,1.16); }
+      .pet-bubble::after { content: ""; position: absolute; right: -9px; top: 77px; width: 17px; height: 17px; border-right: 1px solid rgba(var(--pet-gold-rgb), .5); border-top: 1px solid rgba(var(--pet-gold-rgb), .5); background: rgba(var(--pet-deep-rgb), .93); transform: rotate(45deg); }
+      body.bubble-open .pet-bubble { opacity: 1; pointer-events: auto; transform: translateX(0) scale(1); }
+      .bubble-head { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; color: rgb(var(--pet-gold-rgb)); font-family: "Ranoa Xiaowei", "Microsoft YaHei UI", sans-serif; font-size: 15px; font-weight: 400; letter-spacing: .08em; text-shadow: 0 0 12px rgba(var(--pet-rgb), .22); }
+      .bubble-head::before { content: "✦"; color: rgb(var(--pet-secondary-rgb)); text-shadow: 0 0 8px rgba(var(--pet-rgb), .75); }
+      .bubble-close { margin-left: auto; width: 24px; height: 24px; padding: 0; border: 0; color: rgba(255,255,255,.62); background: transparent; cursor: pointer; font-size: 17px; }
+      .bubble-text { max-height: 154px; margin: 0 0 13px; padding: 1px 6px 1px 0; overflow: auto; color: rgba(246,249,255,.92); font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif; font-size: 13.5px; font-weight: 430; line-height: 1.72; letter-spacing: .012em; user-select: text; scrollbar-width: thin; scrollbar-color: rgba(var(--pet-rgb), .42) transparent; }
+      .bubble-text p { margin: 0 0 8px; }
+      .bubble-text p:last-child, .bubble-text ul:last-child, .bubble-text ol:last-child { margin-bottom: 0; }
+      .bubble-text ul, .bubble-text ol { margin: 5px 0 10px; padding-left: 20px; }
+      .bubble-text li { margin: 3px 0; }
+      .bubble-text strong { color: #fff; font-weight: 760; text-shadow: 0 0 8px rgba(var(--pet-rgb), .16); }
+      .bubble-text em { color: rgb(var(--pet-secondary-rgb)); }
+      .bubble-text code { padding: 1px 5px; border: 1px solid rgba(var(--pet-rgb), .18); border-radius: 5px; color: rgb(var(--pet-gold-rgb)); background: rgba(0,0,0,.24); font-family: "Cascadia Code", Consolas, monospace; font-size: .92em; }
+      .bubble-reply { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+      .bubble-reply textarea { width: 100%; height: 36px; min-height: 36px; max-height: 62px; padding: 8px 10px; resize: none; border: 1px solid rgba(var(--pet-rgb), .24); border-radius: 11px; outline: 0; color: white; background: rgba(0,0,0,.22); font: 13px/1.45 "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif; letter-spacing: .01em; user-select: text; }
+      .bubble-reply textarea:focus { border-color: rgba(var(--pet-secondary-rgb), .62); box-shadow: 0 0 0 2px rgba(var(--pet-rgb), .12); }
+      .bubble-send { min-width: 48px; padding: 0 10px; border: 1px solid rgba(var(--pet-gold-rgb), .46); border-radius: 10px; color: rgb(var(--pet-gold-rgb)); background: linear-gradient(145deg, rgba(var(--pet-rgb), .2), rgba(var(--pet-deep-rgb), .76)); cursor: pointer; font: 700 12px/1 inherit; }
+      .bubble-send:hover { filter: brightness(1.2); box-shadow: 0 0 12px rgba(var(--pet-rgb), .22); }
+      .bubble-status { min-height: 15px; margin-top: 5px; color: rgba(var(--pet-secondary-rgb), .7); font-size: 10px; }
+      body.is-tapped .companion-wrap { animation: pet-tap .44s cubic-bezier(.2,.9,.25,1.2); }
+
+      @keyframes companion-float { 0%, 100% { transform: translateY(1px) rotate(-.15deg); } 50% { transform: translateY(-7px) rotate(.25deg); } }
+      @keyframes halo-turn { to { transform: translateX(-50%) rotate(360deg); } }
+      @keyframes aura-turn { to { transform: translateX(-50%) scaleY(.36) rotate(360deg); } }
+      @keyframes glow-breathe { 50% { opacity: .62; transform: translateX(-50%) scaleX(1.12); } }
+      @keyframes mote-rise { 0% { opacity: 0; transform: translate(0, 0) scale(.5); } 18% { opacity: .9; } 100% { opacity: 0; transform: translate(var(--x), -238px) scale(1.4); } }
+      @keyframes glyph-pulse { 50% { opacity: .42; transform: scale(.72) rotate(45deg); } }
+      @keyframes glyph-turn { to { transform: rotate(360deg); } }
+      @keyframes working-orbit { 0%,100% { transform: rotate(0) scale(.88); opacity: .65; } 50% { transform: rotate(180deg) scale(1.16); opacity: 1; } }
+      @keyframes message-beacon { 0%,100% { transform: scale(.84); opacity: .62; } 50% { transform: scale(1.18) rotate(45deg); opacity: 1; } }
+      @keyframes working-standby { 0%,100% { transform: translateY(0) rotate(-.12deg); } 50% { transform: translateY(-4px) rotate(.18deg); } }
+      @keyframes pet-tap { 0% { transform: scale(1); } 45% { transform: translateY(-10px) scale(1.035); } 100% { transform: scale(1); } }
+      @keyframes tool-focus { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(-7px) scale(1.012); } }
+      @keyframes companion-done { 0% { transform: translateY(0) scale(1); } 38% { transform: translateY(-22px) scale(1.04); } 68% { transform: translateY(2px) scale(.99); } 100% { transform: translateY(0) scale(1); } }
+      @keyframes companion-error { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px) rotate(-.8deg); } 75% { transform: translateX(5px) rotate(.8deg); } }
+      @keyframes pose-reading { 0%,100% { transform: translateX(-50%) translateY(0) rotate(-.15deg); } 50% { transform: translateX(-50%) translateY(-4px) rotate(.18deg); } }
+      @keyframes pose-casting { 0%,100% { transform: translateX(-50%) translateY(0) scale(1); filter: drop-shadow(0 12px 10px rgba(var(--pet-deep-rgb), .54)) drop-shadow(0 0 10px rgba(var(--pet-rgb), .32)); } 50% { transform: translateX(-50%) translateY(-5px) scale(1.015); filter: drop-shadow(0 12px 10px rgba(var(--pet-deep-rgb), .54)) drop-shadow(0 0 20px rgba(var(--pet-rgb), .62)); } }
+      @keyframes pose-arrival { 0% { transform: translateX(-50%) translateY(10px) scale(.94); opacity: .3; } 68% { transform: translateX(-50%) translateY(-3px) scale(1.025); opacity: 1; } 100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
+    </style>
+  </head>
+  <body data-theme="roxy" data-state="idle">
+    <section class="pet-bubble" aria-live="polite" aria-label="伙伴消息">
+      <div class="bubble-head"><span class="bubble-title">任务完成</span><button class="bubble-close" type="button" aria-label="关闭气泡">×</button></div>
+      <div class="bubble-text"></div>
+      <form class="bubble-reply">
+        <textarea aria-label="通过伙伴回复" placeholder="告诉我接下来做什么…"></textarea>
+        <button class="bubble-send" type="submit">发送</button>
+      </form>
+      <div class="bubble-status" aria-live="polite"></div>
+    </section>
+    <main class="pet-stage" aria-label="RANOA desktop companion">
+      <div class="halo" aria-hidden="true"></div><div class="aura" aria-hidden="true"></div>
+      <span class="mote" aria-hidden="true"></span><span class="mote" aria-hidden="true"></span><span class="mote" aria-hidden="true"></span><span class="mote" aria-hidden="true"></span><span class="mote" aria-hidden="true"></span>
+      <div class="companion-wrap" role="button" tabindex="0" aria-label="打开伙伴消息"><img class="companion is-active" src="../public/ui/pets/roxy-companion.png" alt="洛琪希桌面伙伴" draggable="false" /><img class="companion" alt="" draggable="false" /></div>
+      <div class="ground-glow" aria-hidden="true"></div><button class="state-orb" type="button" aria-label="打开伙伴消息"></button>
+    </main>
+    <script>
+      const themes = {
+        roxy: { name: "洛琪希", alt: "洛琪希桌面伙伴", states: { idle: "roxy-companion.png", working: "roxy-working.png", thinking: "roxy-thinking.png", tool: "roxy-tool.png", done: "roxy-done.png", error: "roxy-error.png" } },
+        sylphiette: { name: "希露菲", alt: "希露菲桌面伙伴", states: { idle: "sylphiette-companion.png", working: "sylphiette-working.png", thinking: "sylphiette-thinking.png", tool: "sylphiette-tool.png", done: "sylphiette-done.png", error: "sylphiette-error.png" } },
+        eris: { name: "爱丽丝", alt: "爱丽丝桌面伙伴", states: { idle: "eris-companion.png", working: "eris-working.png", thinking: "eris-thinking.png", tool: "eris-tool.png", done: "eris-done.png", error: "eris-error.png" } },
+      };
+      const states = new Set(["idle", "working", "thinking", "tool", "done", "error"]);
+      const stateLabels = { idle: "伙伴待命", working: "正在准备", thinking: "正在思考", tool: "正在调用工具", done: "任务完成", error: "需要检查" };
+      const images = Array.from(document.querySelectorAll(".companion"));
+      const companionButton = document.querySelector(".companion-wrap");
+      const stateOrb = document.querySelector(".state-orb");
+      const bubble = document.querySelector(".pet-bubble");
+      const bubbleTitle = document.querySelector(".bubble-title");
+      const bubbleText = document.querySelector(".bubble-text");
+      const bubbleClose = document.querySelector(".bubble-close");
+      const replyForm = document.querySelector(".bubble-reply");
+      const replyInput = replyForm.querySelector("textarea");
+      const bubbleStatus = document.querySelector(".bubble-status");
+      let activeTheme = "roxy";
+      let activeImageIndex = 0;
+      let activeMessage = null;
+      let activeActivity = null;
+      let bubbleRequestedOpen = false;
+      let bubbleTransitionId = 0;
+      function stateImage(theme, state) {
+        return `../public/ui/pets/${themes[theme].states[state] || themes[theme].states.idle}`;
+      }
+      function updateCompanionImage() {
+        const state = states.has(document.body.dataset.state) ? document.body.dataset.state : "idle";
+        const source = stateImage(activeTheme, state);
+        const current = images[activeImageIndex];
+        if (current.getAttribute("src") === source) return;
+        const nextIndex = activeImageIndex === 0 ? 1 : 0;
+        const next = images[nextIndex];
+        next.onload = () => {
+          next.alt = themes[activeTheme].alt;
+          next.classList.add("is-active");
+          current.classList.remove("is-active");
+          current.alt = "";
+          activeImageIndex = nextIndex;
+        };
+        next.onerror = () => {
+          if (!source.endsWith("-companion.png")) next.src = stateImage(activeTheme, "idle");
+        };
+        next.src = source;
+      }
+      function applyTheme(theme) {
+        if (!themes[theme] || theme === activeTheme) return;
+        activeTheme = theme;
+        document.body.dataset.theme = theme;
+        updateCompanionImage();
+        renderBubbleContent();
+      }
+      function setState(state) {
+        if (!states.has(state)) return;
+        document.body.dataset.state = state;
+        updateCompanionImage();
+        renderBubbleContent();
+      }
+      function appendInlineMarkdown(parent, source) {
+        const tokenPattern = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|~~[^~]+~~)/g;
+        let cursor = 0;
+        for (const match of source.matchAll(tokenPattern)) {
+          if (match.index > cursor) parent.append(document.createTextNode(source.slice(cursor, match.index)));
+          const token = match[0];
+          const element = token.startsWith("**") ? document.createElement("strong") : token.startsWith("`") ? document.createElement("code") : token.startsWith("~~") ? document.createElement("s") : document.createElement("em");
+          element.textContent = token.startsWith("**") || token.startsWith("~~") ? token.slice(2, -2) : token.slice(1, -1);
+          parent.append(element);
+          cursor = match.index + token.length;
+        }
+        if (cursor < source.length) parent.append(document.createTextNode(source.slice(cursor)));
+      }
+      function renderMarkdown(target, markdown) {
+        target.replaceChildren();
+        const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+        let list = null;
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          const bullet = line.match(/^[-*+]\s+(.+)$/);
+          const ordered = line.match(/^\d+[.)]\s+(.+)$/);
+          if (bullet || ordered) {
+            const tag = ordered ? "ol" : "ul";
+            if (!list || list.tagName.toLowerCase() !== tag) { list = document.createElement(tag); target.append(list); }
+            const item = document.createElement("li"); appendInlineMarkdown(item, (bullet || ordered)[1]); list.append(item); continue;
+          }
+          list = null;
+          if (!line) continue;
+          const paragraph = document.createElement("p"); appendInlineMarkdown(paragraph, line.replace(/^#{1,6}\s+/, "")); target.append(paragraph);
+        }
+      }
+      function isActiveTaskState(state) {
+        return state === "working" || state === "thinking" || state === "tool" || state === "error";
+      }
+      function renderBubbleContent() {
+        const state = states.has(document.body.dataset.state) ? document.body.dataset.state : "idle";
+        const characterName = themes[activeTheme].name;
+        if (isActiveTaskState(state) && activeActivity) {
+          bubbleTitle.textContent = `${characterName} · ${stateLabels[state]}`;
+          renderMarkdown(bubbleText, `**当前任务**\n\n${activeActivity.text}`);
+          replyInput.placeholder = state === "error" ? "补充信息或调整指令…" : "给当前任务追加指令…";
+          return;
+        }
+        if (activeMessage) {
+          bubbleTitle.textContent = `${characterName} · ${stateLabels.done}`;
+          renderMarkdown(bubbleText, activeMessage.text);
+          replyInput.placeholder = "告诉我接下来做什么…";
+          return;
+        }
+        bubbleTitle.textContent = `${characterName} · ${stateLabels.idle}`;
+        renderMarkdown(bubbleText, "我在这里。拖动角色可以调整位置，点击角色可以查看当前任务。 ");
+        replyInput.placeholder = "告诉我接下来做什么…";
+      }
+      async function setBubbleVisibility(shouldOpen, immediate = false) {
+        const transitionId = ++bubbleTransitionId;
+        bubbleRequestedOpen = shouldOpen;
+        renderBubbleContent();
+        if (shouldOpen) {
+          await window.ranoaDesktop?.pet.setBubbleOpen(true);
+          if (transitionId !== bubbleTransitionId || !bubbleRequestedOpen) return;
+          document.body.classList.add("bubble-open");
+          window.setTimeout(() => {
+            if (transitionId === bubbleTransitionId && bubbleRequestedOpen) replyInput.focus();
+          }, 180);
+          return;
+        }
+        document.body.classList.remove("bubble-open");
+        if (!immediate) await new Promise((resolve) => window.setTimeout(resolve, 190));
+        if (transitionId !== bubbleTransitionId || bubbleRequestedOpen) return;
+        await window.ranoaDesktop?.pet.setBubbleOpen(false);
+      }
+      function toggleBubble(force) {
+        const shouldOpen = typeof force === "boolean" ? force : !bubbleRequestedOpen;
+        return setBubbleVisibility(shouldOpen);
+      }
+      function tapCompanion() {
+        document.body.classList.remove("is-tapped");
+        void document.body.offsetWidth;
+        document.body.classList.add("is-tapped");
+        window.setTimeout(() => document.body.classList.remove("is-tapped"), 460);
+        toggleBubble();
+      }
+      function receiveMessage(message) {
+        if (!message || typeof message.text !== "string" || !message.text.trim()) return;
+        activeMessage = { sessionId: typeof message.sessionId === "string" ? message.sessionId : null, text: message.text.trim() };
+        bubbleStatus.textContent = "";
+        document.body.classList.add("has-message");
+        setState("done");
+      }
+      function receiveActivity(activity) {
+        if (!activity || typeof activity.text !== "string" || !activity.text.trim()) return;
+        activeActivity = { sessionId: typeof activity.sessionId === "string" ? activity.sessionId : null, text: activity.text.trim() };
+        activeMessage = null;
+        document.body.classList.remove("has-message");
+        bubbleStatus.textContent = "";
+        renderBubbleContent();
+      }
+      const dragThreshold = 7;
+      let dragSession = null;
+      let dragMoveFrame = 0;
+      let suppressClickUntil = 0;
+      function queueDragMove() {
+        if (dragMoveFrame) return;
+        dragMoveFrame = window.requestAnimationFrame(() => {
+          dragMoveFrame = 0;
+          if (dragSession?.dragging && !dragSession.ended) window.ranoaDesktop?.pet.moveDrag();
+        });
+      }
+      async function beginDrag(session) {
+        session.starting = true;
+        await setBubbleVisibility(false, true);
+        if (dragSession !== session || session.ended) return;
+        const started = await window.ranoaDesktop?.pet.startDrag({ x: session.startX, y: session.startY });
+        if (dragSession !== session || session.ended) {
+          if (started !== false) window.ranoaDesktop?.pet.endDrag();
+          return;
+        }
+        if (started === false) {
+          session.starting = false;
+          return;
+        }
+        session.starting = false;
+        session.dragging = true;
+        document.body.classList.add("is-dragging");
+        queueDragMove();
+      }
+      companionButton.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        dragSession = { pointerId: event.pointerId, startX: event.screenX, startY: event.screenY, currentX: event.screenX, currentY: event.screenY, distance: 0, starting: false, dragging: false, ended: false };
+        companionButton.setPointerCapture(event.pointerId);
+      });
+      companionButton.addEventListener("pointermove", (event) => {
+        if (!dragSession || dragSession.pointerId !== event.pointerId) return;
+        dragSession.currentX = event.screenX;
+        dragSession.currentY = event.screenY;
+        dragSession.distance = Math.hypot(event.screenX - dragSession.startX, event.screenY - dragSession.startY);
+        if (!dragSession.dragging && !dragSession.starting && dragSession.distance >= dragThreshold) void beginDrag(dragSession);
+        if (dragSession.dragging) queueDragMove();
+      });
+      function finishDrag(event) {
+        if (!dragSession || dragSession.pointerId !== event.pointerId) return;
+        const session = dragSession;
+        session.ended = true;
+        if (companionButton.hasPointerCapture(event.pointerId)) companionButton.releasePointerCapture(event.pointerId);
+        dragSession = null;
+        if (dragMoveFrame) { window.cancelAnimationFrame(dragMoveFrame); dragMoveFrame = 0; }
+        if (session.dragging) window.ranoaDesktop?.pet.endDrag();
+        if (session.dragging || session.starting || session.distance >= dragThreshold) suppressClickUntil = performance.now() + 450;
+        document.body.classList.remove("is-dragging");
+      }
+      companionButton.addEventListener("pointerup", finishDrag);
+      companionButton.addEventListener("pointercancel", finishDrag);
+      companionButton.addEventListener("click", (event) => {
+        if (performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); return; }
+        tapCompanion();
+      });
+      companionButton.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); tapCompanion(); }
+      });
+      stateOrb.addEventListener("click", (event) => { event.stopPropagation(); toggleBubble(); });
+      bubbleClose.addEventListener("click", () => toggleBubble(false));
+      bubble.addEventListener("click", (event) => event.stopPropagation());
+      replyInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); replyForm.requestSubmit(); }
+      });
+      replyForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const text = replyInput.value.trim();
+        if (!text) return;
+        const sent = await window.ranoaDesktop?.pet.reply({ sessionId: activeMessage?.sessionId ?? activeActivity?.sessionId ?? null, text });
+        bubbleStatus.textContent = sent ? "已送达工作台" : "工作台暂时不可用";
+        if (!sent) return;
+        replyInput.value = "";
+        document.body.classList.remove("has-message");
+        window.setTimeout(() => { toggleBubble(false); setState("idle"); }, 700);
+      });
+      window.ranoaDesktop?.pet.onTheme(applyTheme);
+      window.ranoaDesktop?.pet.onState(setState);
+      window.ranoaDesktop?.pet.onMessage(receiveMessage);
+      window.ranoaDesktop?.pet.onActivity(receiveActivity);
+    </script>
+  </body>
+</html>

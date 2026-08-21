@@ -3,7 +3,28 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("./SessionSidebar.tsx", import.meta.url), "utf8");
+const magicPolish = await readFile(new URL("../app/magic-polish.css", import.meta.url), "utf8");
 const sessionItemSource = source.slice(source.indexOf("function SessionItem("));
+
+test("lets each session card follow the ornament's native aspect ratio", () => {
+  const frameAssetUses = magicPolish.match(/destiny-frame-v1\.png/g) ?? [];
+
+  assert.equal(frameAssetUses.length, 1);
+  assert.match(
+    magicPolish,
+    /\.session-item::before,[\s\S]*?inset:\s*0 !important;[\s\S]*?width:\s*100% !important;[\s\S]*?height:\s*100% !important;/,
+  );
+  assert.match(magicPolish, /aspect-ratio:\s*1986 \/ 792;/);
+  assert.match(
+    magicPolish,
+    /background-image:\s*url\('\/ui\/sidebar\/destiny-frame-v1\.png'\) !important;/,
+  );
+  assert.match(magicPolish, /background-size:\s*100% 100% !important;/);
+  assert.match(magicPolish, /\.session-item \{[\s\S]*?background:\s*transparent !important;[\s\S]*?box-shadow:\s*none !important;/);
+  assert.match(magicPolish, /\.session-item\.is-selected::after \{\s*content:\s*none !important;/);
+  assert.doesNotMatch(magicPolish, /border-image-source:\s*url\('\/ui\/sidebar\/destiny-frame-v1\.png'\)/);
+  assert.doesNotMatch(magicPolish, /background-size:\s*100% (?:188|212)%/);
+});
 
 test("only Shift+click bypasses session deletion confirmation", () => {
   assert.match(
@@ -82,15 +103,20 @@ test("places new-session creation directly below the brand", () => {
   const workspaceIndex = source.indexOf('className="workspace-context-card"');
   const headerIndex = source.indexOf('className="session-list-header"');
   assert.ok(brandIndex >= 0 && brandIndex < newSessionIndex && newSessionIndex < workspaceIndex && workspaceIndex < headerIndex);
-  assert.match(source, /className="sidebar-brand-edition">WORKBENCH/);
+  assert.doesNotMatch(source, /sidebar-brand-edition|WORKBENCH/);
 });
 
-test("keeps conversation search and an accessible file divider in the quiet hierarchy", () => {
+test("keeps conversation search while removing the file explorer resize strip", () => {
   assert.match(source, /className="sidebar-session-search"/);
   assert.match(source, /t\("sidebar\.searchSessions"\)/);
-  assert.match(source, /className="file-explorer-divider-grip"/);
-  assert.match(source, /onKeyDown=\{handleExplorerResizeKeyDown\}/);
-  assert.match(source, /if \(event\.key === "ArrowUp"\) nextRatio = explorerRatio \+ 2/);
+  assert.doesNotMatch(source, /file-explorer-divider/);
+  assert.doesNotMatch(source, /handleExplorerResize|explorerRatio|explorerResizing/);
+});
+
+test("lays out new session as one icon-copy-tail control", () => {
+  assert.match(source, /className="sidebar-new-session-copy"/);
+  assert.match(source, /className="sidebar-new-session-rune-line"/);
+  assert.match(source, /className="sidebar-new-session-tail"/);
 });
 
 test("keeps the RANOA brand stable instead of swapping to version numbers", () => {
@@ -110,4 +136,12 @@ test("marks session activity states for the refined visual hierarchy", () => {
   assert.match(sessionItemSource, /isSelected \? " is-selected"/);
   assert.match(sessionItemSource, /isRunning \? " is-running"/);
   assert.match(sessionItemSource, /isUnread \? " is-unread"/);
+});
+
+test("uses one delegated arcane press effect for real sidebar controls", () => {
+  assert.match(source, /const handleArcanePress = useCallback/);
+  assert.match(source, /target\.closest<HTMLElement>/);
+  assert.match(source, /onPointerDown=\{handleArcanePress\}/);
+  assert.match(source, /className=\{`sidebar-arcane-pulse is-\$\{arcanePulse\.tone\}`\}/);
+  assert.match(source, /onAnimationEnd=\{\(\) => setArcanePulse\(null\)\}/);
 });

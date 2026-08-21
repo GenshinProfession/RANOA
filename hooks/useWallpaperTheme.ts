@@ -7,6 +7,7 @@ export type WallpaperId = "roxy" | "sylphiette" | "eris";
 export interface WallpaperPreset {
   id: WallpaperId;
   image: string;
+  companionImage: string;
   nameKey: string;
   descriptionKey: string;
   paletteKey: string;
@@ -17,6 +18,7 @@ export const WALLPAPER_PRESETS: readonly WallpaperPreset[] = [
   {
     id: "roxy",
     image: "/backgrounds/roxy-workbench.png",
+    companionImage: "/ui/pets/roxy-companion.png",
     nameKey: "appearance.roxy",
     descriptionKey: "appearance.roxyDescription",
     paletteKey: "appearance.roxyPalette",
@@ -25,6 +27,7 @@ export const WALLPAPER_PRESETS: readonly WallpaperPreset[] = [
   {
     id: "sylphiette",
     image: "/backgrounds/sylphiette-workbench.png",
+    companionImage: "/ui/pets/sylphiette-companion.png",
     nameKey: "appearance.sylphiette",
     descriptionKey: "appearance.sylphietteDescription",
     paletteKey: "appearance.sylphiettePalette",
@@ -33,6 +36,7 @@ export const WALLPAPER_PRESETS: readonly WallpaperPreset[] = [
   {
     id: "eris",
     image: "/backgrounds/eris-workbench.png",
+    companionImage: "/ui/pets/eris-companion.png",
     nameKey: "appearance.eris",
     descriptionKey: "appearance.erisDescription",
     paletteKey: "appearance.erisPalette",
@@ -62,6 +66,9 @@ function readStoredWallpaper(): WallpaperId {
 function applyWallpaper(id: WallpaperId): void {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.wallpaper = id;
+  void window.ranoaDesktop?.pet.setTheme(id).catch(() => {
+    // The web build intentionally runs without the optional desktop bridge.
+  });
 }
 
 function ensureWallpaper(): WallpaperId {

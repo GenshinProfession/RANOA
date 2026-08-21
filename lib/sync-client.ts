@@ -29,15 +29,26 @@ interface LocalDescriptor {
 
 interface SyncClientResponse<T> { value: T; response: Response; }
 
+export interface SyncRemoteAuth {
+  username?: string;
+  password?: string;
+}
+
+function setRemoteAuth(headers: Headers, auth?: SyncRemoteAuth): void {
+  if (!auth?.username || !auth.password) return;
+  headers.set("x-ranoa-sync-auth", `Basic ${Buffer.from(`${auth.username}:${auth.password}`).toString("base64")}`);
+}
+
 function endpointUrl(endpoint: string, path: string): string {
   return `${endpoint.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 
-async function requestJson<T>(endpoint: string, path: string, init: RequestInit = {}, deviceToken?: string): Promise<SyncClientResponse<T>> {
+async function requestJson<T>(endpoint: string, path: string, init: RequestInit = {}, deviceToken?: string, auth?: SyncRemoteAuth): Promise<SyncClientResponse<T>> {
   const headers = new Headers(init.headers);
   headers.set("accept", "application/json");
   if (init.body && typeof init.body === "string") headers.set("content-type", "application/json");
   if (deviceToken) headers.set("authorization", `Bearer ${deviceToken}`);
+  setRemoteAuth(headers, auth);
   const response = await fetch(endpointUrl(endpoint, path), { ...init, headers });
   const value = await response.json().catch(() => ({})) as T & { message?: string; error?: string };
   if (!response.ok) {
@@ -50,8 +61,10 @@ async function requestJson<T>(endpoint: string, path: string, init: RequestInit 
   return { value, response };
 }
 
-async function requestBinary(endpoint: string, path: string, deviceToken: string): Promise<Buffer> {
-  const response = await fetch(endpointUrl(endpoint, path), { headers: { authorization: `Bearer ${deviceToken}` } });
+async function requestBinary(endpoint: string, path: string, deviceToken: string, auth?: SyncRemoteAuth): Promise<Buffer> {
+  const headers = new Headers({ authorization: `Bearer ${deviceToken}` });
+  setRemoteAuth(headers, auth);
+  const response = await fetch(endpointUrl(endpoint, path), { headers });
   if (!response.ok) throw new Error(`Unable to download sync chunk (${response.status})`);
   return Buffer.from(await response.arrayBuffer());
 }
@@ -79,14 +92,18 @@ async function readOrScan(agentDir: string): Promise<LocalSyncManifest> {
   return scanned.manifest;
 }
 
-async function uploadChunk(endpoint: string, token: string, chunk: ReturnType<typeof encryptChunk>): Promise<void> {
-  const head = await fetch(endpointUrl(endpoint, `/v1/chunks/${chunk.chunkId}`), { method: "HEAD", headers: { authorization: `Bearer ${token}` } });
+async function uploadChunk(endpoint: string, token: string, chunk: ReturnType<typeof encryptChunk>, auth?: SyncRemoteAuth): Promise<void> {
+  const headHeaders = new Headers({ authorization: `Bearer ${token}` });
+  setRemoteAuth(headHeaders, auth);
+  const head = await fetch(endpointUrl(endpoint, `/v1/chunks/${chunk.chunkId}`), { method: "HEAD", headers: headHeaders });
   if (head.ok) return;
-  const response = await fetch(endpointUrl(endpoint, `/v1/chunks/${chunk.chunkId}`), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: Buffer.from(JSON.stringify(chunk)) });
+  const putHeaders = new Headers({ authorization: `Bearer ${token}`, "content-type": "application/octet-stream" });
+  setRemoteAuth(putHeaders, auth);
+  const response = await fetch(endpointUrl(endpoint, `/v1/chunks/${chunk.chunkId}`), { method: "PUT", headers: putHeaders, body: Buffer.from(JSON.stringify(chunk)) });
   if (!response.ok) throw new Error(`Unable to upload sync chunk (${response.status})`);
 }
 
-async function commitLocalEntry(endpoint: string, device: LocalSyncDevice, vaultKey: Buffer, agentDir: string, entry: LocalSyncEntry, baseRevision: number): Promise<{ descriptor: LocalSyncObjectRecordLike; commit: SyncCommitResponse }> {
+async function commitLocalEntry(endpoint: string, device: LocalSyncDevice, vaultKey: Buffer, agentDir: string, entry: LocalSyncEntry, baseRevision: number, auth?: SyncRemoteAuth): Promise<{ descriptor: LocalSyncObjectRecordLike; commit: SyncCommitResponse }> {
   const objectId = objectIdForPath(vaultKey, entry.path);
   const content = await readFile(join(agentDir, entry.path));
   const chunks = [] as ReturnType<typeof encryptChunk>[];
@@ -95,21 +112,21 @@ async function commitLocalEntry(endpoint: string, device: LocalSyncDevice, vault
     const plaintext = content.subarray(offset, Math.min(content.length, offset + chunkSize));
     const chunk = encryptChunk(plaintext, vaultKey);
     chunks.push(chunk);
-    await uploadChunk(endpoint, device.deviceToken!, chunk);
+    await uploadChunk(endpoint, device.deviceToken!, chunk, auth);
     if (offset + chunkSize >= content.length) break;
   }
   const encryptedManifest = encryptJson({ schemaVersion: 1, objectId, path: entry.path, category: entry.category, size: entry.size, sha256: entry.sha256, modifiedAt: entry.modifiedAt, chunkIds: chunks.map((chunk) => chunk.chunkId) } satisfies EncryptedObjectManifest, vaultKey, `ranoa-object:${objectId}:${baseRevision + 1}`);
-  const { value: commit } = await requestJson<SyncCommitResponse>(endpoint, `/v1/objects/${objectId}/commit`, { method: "POST", body: JSON.stringify({ operationId: operationId(), objectId, baseRevision, schemaVersion: 1, deleted: false, encryptedManifest, chunkIds: chunks.map((chunk) => chunk.chunkId) }) }, device.deviceToken!);
+  const { value: commit } = await requestJson<SyncCommitResponse>(endpoint, `/v1/objects/${objectId}/commit`, { method: "POST", body: JSON.stringify({ operationId: operationId(), objectId, baseRevision, schemaVersion: 1, deleted: false, encryptedManifest, chunkIds: chunks.map((chunk) => chunk.chunkId) }) }, device.deviceToken!, auth);
   return { descriptor: { objectId, path: entry.path, revision: commit.revision, deleted: false, sha256: entry.sha256, chunkIds: chunks.map((chunk) => chunk.chunkId) }, commit };
 }
 
 interface LocalSyncObjectRecordLike { objectId: string; path: string; revision: number; deleted: boolean; sha256: string | null; chunkIds: string[] }
 
-export async function createVault(endpoint: string, agentDir: string, deviceName: string): Promise<LocalSyncDevice> {
+export async function createVault(endpoint: string, agentDir: string, deviceName: string, auth?: SyncRemoteAuth): Promise<LocalSyncDevice> {
   const syncDir = getSyncDir(agentDir);
   const identity = await getOrCreateLocalSyncDevice(syncDir, deviceName);
   const vaultKey = freshVaultKey();
-  const response = await requestJson<SyncAuthResponse>(endpoint, "/v1/vaults", { method: "POST", body: JSON.stringify({ deviceId: identity.deviceId, deviceName, publicKey: identity.publicKey, vaultKeyEnvelope: wrapVaultKey(vaultKey, identity.publicKey) }) });
+  const response = await requestJson<SyncAuthResponse>(endpoint, "/v1/vaults", { method: "POST", body: JSON.stringify({ deviceId: identity.deviceId, deviceName, publicKey: identity.publicKey, vaultKeyEnvelope: wrapVaultKey(vaultKey, identity.publicKey) }) }, undefined, auth);
   const device = createLocalVaultState({ ...identity, name: deviceName }, response.value.vaultId, response.value.deviceToken, vaultKey, response.value.serverEpoch);
   await writeLocalSyncDevice(syncDir, device);
   const journal = await readSyncJournal(agentDir);
@@ -118,22 +135,23 @@ export async function createVault(endpoint: string, agentDir: string, deviceName
   return device;
 }
 
-export async function createPairingCode(endpoint: string, device: LocalSyncDevice): Promise<{ code: string; expiresAt: string }> {
+export async function createPairingCode(endpoint: string, device: LocalSyncDevice, auth?: SyncRemoteAuth): Promise<{ code: string; expiresAt: string }> {
   if (!device.deviceToken) throw new Error("This device is not paired");
-  return (await requestJson<{ code: string; expiresAt: string }>(endpoint, "/v1/pairing/codes", { method: "POST" }, device.deviceToken)).value;
+  return (await requestJson<{ code: string; expiresAt: string }>(endpoint, "/v1/pairing/codes", { method: "POST" }, device.deviceToken, auth)).value;
 }
 
-export async function requestPairing(endpoint: string, agentDir: string, code: string, deviceName: string): Promise<{ requestId: string; expiresAt: string }> {
+export async function requestPairing(endpoint: string, agentDir: string, code: string, deviceName: string, auth?: SyncRemoteAuth): Promise<{ requestId: string; expiresAt: string }> {
   const syncDir = getSyncDir(agentDir);
   const existing = await getOrCreateLocalSyncDevice(syncDir, deviceName);
-  return (await requestJson<{ requestId: string; expiresAt: string }>(endpoint, "/v1/pairing/requests", { method: "POST", body: JSON.stringify({ code, name: deviceName, publicKey: existing.publicKey }) })).value;
+  return (await requestJson<{ requestId: string; expiresAt: string }>(endpoint, "/v1/pairing/requests", { method: "POST", body: JSON.stringify({ code, name: deviceName, publicKey: existing.publicKey }) }, undefined, auth)).value;
 }
 
-export async function approvePairing(endpoint: string, owner: LocalSyncDevice, requestId: string, newDevicePublicKey: string): Promise<SyncAuthResponse> {
-  return (await requestJson<SyncAuthResponse>(endpoint, `/v1/pairing/requests/${encodeURIComponent(requestId)}/approve`, { method: "POST", body: JSON.stringify({ vaultKeyEnvelope: wrapVaultKey(localVaultKey(owner), newDevicePublicKey) }) }, owner.deviceToken!)).value;
+export async function approvePairing(endpoint: string, owner: LocalSyncDevice, requestId: string, newDevicePublicKey: string, auth?: SyncRemoteAuth): Promise<SyncAuthResponse> {
+  return (await requestJson<SyncAuthResponse>(endpoint, `/v1/pairing/requests/${encodeURIComponent(requestId)}/approve`, { method: "POST", body: JSON.stringify({ vaultKeyEnvelope: wrapVaultKey(localVaultKey(owner), newDevicePublicKey) }) }, owner.deviceToken!, auth)).value;
 }
 
-export async function completePairing(endpoint: string, agentDir: string, response: SyncAuthResponse, deviceName: string): Promise<LocalSyncDevice> {
+export async function completePairing(endpoint: string, agentDir: string, response: SyncAuthResponse, deviceName: string, auth?: SyncRemoteAuth): Promise<LocalSyncDevice> {
+  void auth;
   const syncDir = getSyncDir(agentDir);
   const existing = await getOrCreateLocalSyncDevice(syncDir, deviceName);
   const vaultKey = unwrapVaultKey(response.vaultKeyEnvelope, existing.privateKey);
@@ -145,11 +163,11 @@ export async function completePairing(endpoint: string, agentDir: string, respon
   return device;
 }
 
-export async function pairingStatus(endpoint: string, requestId: string): Promise<{ status: "pending" | "approved" | "rejected"; response?: SyncAuthResponse }> {
-  return (await requestJson<{ status: "pending" | "approved" | "rejected"; response?: SyncAuthResponse }>(endpoint, `/v1/pairing/requests/${encodeURIComponent(requestId)}`)).value;
+export async function pairingStatus(endpoint: string, requestId: string, auth?: SyncRemoteAuth): Promise<{ status: "pending" | "approved" | "rejected"; response?: SyncAuthResponse }> {
+  return (await requestJson<{ status: "pending" | "approved" | "rejected"; response?: SyncAuthResponse }>(endpoint, `/v1/pairing/requests/${encodeURIComponent(requestId)}`, {}, undefined, auth)).value;
 }
 
-export async function syncPlan(endpoint: string, agentDir: string, device: LocalSyncDevice): Promise<SyncPlanResponse> {
+export async function syncPlan(endpoint: string, agentDir: string, device: LocalSyncDevice, auth?: SyncRemoteAuth): Promise<SyncPlanResponse> {
   const manifest = await readOrScan(agentDir);
   const journal = await readSyncJournal(agentDir);
   const vaultKey = localVaultKey(device);
@@ -163,7 +181,7 @@ export async function syncPlan(endpoint: string, agentDir: string, device: Local
     if (present.has(previous.objectId)) continue;
     objects.push({ objectId: previous.objectId, currentRevision: previous.revision, deleted: true, changed: !previous.deleted, chunkIds: [] });
   }
-  const plan = (await requestJson<SyncPlanResponse>(endpoint, "/v1/sync/plan", { method: "POST", body: JSON.stringify({ schemaVersion: 1, cursor: journal.cursor, objects }) }, device.deviceToken!)).value;
+  const plan = (await requestJson<SyncPlanResponse>(endpoint, "/v1/sync/plan", { method: "POST", body: JSON.stringify({ schemaVersion: 1, cursor: journal.cursor, objects }) }, device.deviceToken!, auth)).value;
   if (journal.serverEpoch && journal.serverEpoch !== plan.serverEpoch) {
     const error = new Error("The sync server epoch changed. Review recovery before syncing again.") as Error & { code?: string };
     error.code = "server_epoch_changed";
@@ -172,11 +190,11 @@ export async function syncPlan(endpoint: string, agentDir: string, device: Local
   return plan;
 }
 
-export async function uploadLocalChanges(endpoint: string, agentDir: string, device: LocalSyncDevice): Promise<{ uploaded: number; conflicts: number; snapshotId: string }> {
+export async function uploadLocalChanges(endpoint: string, agentDir: string, device: LocalSyncDevice, auth?: SyncRemoteAuth): Promise<{ uploaded: number; conflicts: number; snapshotId: string }> {
   const manifest = await readOrScan(agentDir);
   const journal = await readSyncJournal(agentDir);
   const vaultKey = localVaultKey(device);
-  const snapshot = await requestJson<{ snapshotId: string }>(endpoint, "/v1/snapshots", { method: "POST", body: JSON.stringify({ label: "before local upload" }) }, device.deviceToken!);
+  const snapshot = await requestJson<{ snapshotId: string }>(endpoint, "/v1/snapshots", { method: "POST", body: JSON.stringify({ label: "before local upload" }) }, device.deviceToken!, auth);
   let uploaded = 0;
   let conflicts = 0;
   const present = new Set<string>();
@@ -187,7 +205,7 @@ export async function uploadLocalChanges(endpoint: string, agentDir: string, dev
     const known = journal.objects[objectId];
     if (known && !known.deleted && known.sha256 === entry.sha256) continue;
     try {
-      const result = await commitLocalEntry(endpoint, device, vaultKey, agentDir, entry, baseRevision);
+      const result = await commitLocalEntry(endpoint, device, vaultKey, agentDir, entry, baseRevision, auth);
       journal.objects[objectId] = { ...result.descriptor };
       uploaded += 1;
     } catch (error) {
@@ -197,7 +215,7 @@ export async function uploadLocalChanges(endpoint: string, agentDir: string, dev
   }
   for (const [objectId, previous] of Object.entries(journal.objects)) {
     if (present.has(objectId) || previous.deleted) continue;
-    const { value: commit } = await requestJson<SyncCommitResponse>(endpoint, `/v1/objects/${objectId}/commit`, { method: "POST", body: JSON.stringify({ operationId: operationId(), objectId, baseRevision: previous.revision, schemaVersion: 1, deleted: true, encryptedManifest: null, chunkIds: [] }) }, device.deviceToken!);
+    const { value: commit } = await requestJson<SyncCommitResponse>(endpoint, `/v1/objects/${objectId}/commit`, { method: "POST", body: JSON.stringify({ operationId: operationId(), objectId, baseRevision: previous.revision, schemaVersion: 1, deleted: true, encryptedManifest: null, chunkIds: [] }) }, device.deviceToken!, auth);
     journal.objects[objectId] = { ...previous, revision: commit.revision, deleted: true, sha256: null, chunkIds: [] };
     uploaded += 1;
   }
@@ -221,11 +239,11 @@ async function decryptRemoteManifest(descriptor: SyncObjectDescriptor, vaultKey:
   return decryptJson<EncryptedObjectManifest>(descriptor.encryptedManifest, vaultKey, `ranoa-object:${descriptor.objectId}:${revision}`);
 }
 
-export async function downloadRemoteChanges(endpoint: string, agentDir: string, device: LocalSyncDevice, plan?: SyncPlanResponse): Promise<{ downloaded: number; deleted: number; snapshotId: string }> {
-  const currentPlan = plan ?? await syncPlan(endpoint, agentDir, device);
+export async function downloadRemoteChanges(endpoint: string, agentDir: string, device: LocalSyncDevice, plan?: SyncPlanResponse, auth?: SyncRemoteAuth): Promise<{ downloaded: number; deleted: number; snapshotId: string }> {
+  const currentPlan = plan ?? await syncPlan(endpoint, agentDir, device, auth);
   const journal = await readSyncJournal(agentDir);
   const vaultKey = localVaultKey(device);
-  const snapshot = await requestJson<{ snapshotId: string }>(endpoint, "/v1/snapshots", { method: "POST", body: JSON.stringify({ label: "before remote restore" }) }, device.deviceToken!);
+  const snapshot = await requestJson<{ snapshotId: string }>(endpoint, "/v1/snapshots", { method: "POST", body: JSON.stringify({ label: "before remote restore" }) }, device.deviceToken!, auth);
   const backupDir = join(getSyncDir(agentDir), "snapshots", snapshot.value.snapshotId);
   let downloaded = 0;
   let deleted = 0;
@@ -244,7 +262,7 @@ export async function downloadRemoteChanges(endpoint: string, agentDir: string, 
     if (!manifest) continue;
     const content: Buffer[] = [];
     for (const chunkId of remote.chunkIds) {
-      const raw = await requestBinary(endpoint, `/v1/chunks/${chunkId}`, device.deviceToken!);
+      const raw = await requestBinary(endpoint, `/v1/chunks/${chunkId}`, device.deviceToken!, auth);
       const { decryptChunk } = await import("./sync-crypto.ts");
       content.push(decryptChunk({ ...JSON.parse(raw.toString("utf8")), chunkId } as never, vaultKey));
     }
@@ -273,36 +291,36 @@ export async function buildLocalSyncDescriptor(agentDir: string, device: LocalSy
   });
 }
 
-export async function listSyncDevices(endpoint: string, device: LocalSyncDevice): Promise<{ devices: Array<{ deviceId: string; name: string; role: string; publicKey: string; createdAt: string; lastSeenAt: string | null; status: string }> }> {
-  return (await requestJson<{ devices: Array<{ deviceId: string; name: string; role: string; publicKey: string; createdAt: string; lastSeenAt: string | null; status: string }> }>(endpoint, "/v1/devices", {}, device.deviceToken!)).value;
+export async function listSyncDevices(endpoint: string, device: LocalSyncDevice, auth?: SyncRemoteAuth): Promise<{ devices: Array<{ deviceId: string; name: string; role: string; publicKey: string; createdAt: string; lastSeenAt: string | null; status: string }> }> {
+  return (await requestJson<{ devices: Array<{ deviceId: string; name: string; role: string; publicKey: string; createdAt: string; lastSeenAt: string | null; status: string }> }>(endpoint, "/v1/devices", {}, device.deviceToken!, auth)).value;
 }
 
-export async function updateSyncDevice(endpoint: string, device: LocalSyncDevice, deviceId: string, input: { action: "revoke" | "update"; name?: string; role?: "full" | "read_only" }): Promise<void> {
-  await requestJson(endpoint, `/v1/devices/${encodeURIComponent(deviceId)}`, { method: "PATCH", body: JSON.stringify(input) }, device.deviceToken!);
+export async function updateSyncDevice(endpoint: string, device: LocalSyncDevice, deviceId: string, input: { action: "revoke" | "update"; name?: string; role?: "full" | "read_only" }, auth?: SyncRemoteAuth): Promise<void> {
+  await requestJson(endpoint, `/v1/devices/${encodeURIComponent(deviceId)}`, { method: "PATCH", body: JSON.stringify(input) }, device.deviceToken!, auth);
 }
 
-export async function listSyncConflicts(endpoint: string, device: LocalSyncDevice): Promise<{ conflicts: SyncConflictRecord[] }> {
-  return (await requestJson<{ conflicts: SyncConflictRecord[] }>(endpoint, "/v1/conflicts", {}, device.deviceToken!)).value;
+export async function listSyncConflicts(endpoint: string, device: LocalSyncDevice, auth?: SyncRemoteAuth): Promise<{ conflicts: SyncConflictRecord[] }> {
+  return (await requestJson<{ conflicts: SyncConflictRecord[] }>(endpoint, "/v1/conflicts", {}, device.deviceToken!, auth)).value;
 }
 
-export async function resolveSyncConflict(endpoint: string, device: LocalSyncDevice, conflictId: string, keepRevision: "local" | "remote"): Promise<void> {
-  await requestJson(endpoint, `/v1/conflicts/${encodeURIComponent(conflictId)}`, { method: "POST", body: JSON.stringify({ keepRevision }) }, device.deviceToken!);
+export async function resolveSyncConflict(endpoint: string, device: LocalSyncDevice, conflictId: string, keepRevision: "local" | "remote", auth?: SyncRemoteAuth): Promise<void> {
+  await requestJson(endpoint, `/v1/conflicts/${encodeURIComponent(conflictId)}`, { method: "POST", body: JSON.stringify({ keepRevision }) }, device.deviceToken!, auth);
 }
 
-export async function listSyncSnapshots(endpoint: string, device: LocalSyncDevice): Promise<{ snapshots: SyncSnapshotRecord[] }> {
-  return (await requestJson<{ snapshots: SyncSnapshotRecord[] }>(endpoint, "/v1/snapshots", {}, device.deviceToken!)).value;
+export async function listSyncSnapshots(endpoint: string, device: LocalSyncDevice, auth?: SyncRemoteAuth): Promise<{ snapshots: SyncSnapshotRecord[] }> {
+  return (await requestJson<{ snapshots: SyncSnapshotRecord[] }>(endpoint, "/v1/snapshots", {}, device.deviceToken!, auth)).value;
 }
 
-export async function previewSyncRestore(endpoint: string, device: LocalSyncDevice, snapshotId: string): Promise<SyncRestorePlan> {
-  return (await requestJson<SyncRestorePlan>(endpoint, `/v1/snapshots/${encodeURIComponent(snapshotId)}/restore-plan`, { method: "POST", body: JSON.stringify({}) }, device.deviceToken!)).value;
+export async function previewSyncRestore(endpoint: string, device: LocalSyncDevice, snapshotId: string, auth?: SyncRemoteAuth): Promise<SyncRestorePlan> {
+  return (await requestJson<SyncRestorePlan>(endpoint, `/v1/snapshots/${encodeURIComponent(snapshotId)}/restore-plan`, { method: "POST", body: JSON.stringify({}) }, device.deviceToken!, auth)).value;
 }
 
-export async function restoreSyncSnapshot(endpoint: string, device: LocalSyncDevice, snapshotId: string): Promise<{ restored: number; snapshotId: string }> {
-  return (await requestJson<{ restored: number; snapshotId: string }>(endpoint, `/v1/snapshots/${encodeURIComponent(snapshotId)}/restore`, { method: "POST", body: JSON.stringify({ confirm: true }) }, device.deviceToken!)).value;
+export async function restoreSyncSnapshot(endpoint: string, device: LocalSyncDevice, snapshotId: string, auth?: SyncRemoteAuth): Promise<{ restored: number; snapshotId: string }> {
+  return (await requestJson<{ restored: number; snapshotId: string }>(endpoint, `/v1/snapshots/${encodeURIComponent(snapshotId)}/restore`, { method: "POST", body: JSON.stringify({ confirm: true }) }, device.deviceToken!, auth)).value;
 }
 
-export async function listSyncAudit(endpoint: string, device: LocalSyncDevice): Promise<{ events: SyncAuditRecord[] }> {
-  return (await requestJson<{ events: SyncAuditRecord[] }>(endpoint, "/v1/audit", {}, device.deviceToken!)).value;
+export async function listSyncAudit(endpoint: string, device: LocalSyncDevice, auth?: SyncRemoteAuth): Promise<{ events: SyncAuditRecord[] }> {
+  return (await requestJson<{ events: SyncAuditRecord[] }>(endpoint, "/v1/audit", {}, device.deviceToken!, auth)).value;
 }
 
 export { requestJson };

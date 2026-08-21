@@ -327,6 +327,13 @@ function TreeNode({
         data-file-tree-row="true"
         data-file-kind={node.isDir ? "directory" : "file"}
         onClick={handleClick}
+        onPointerDown={(event) => {
+          if (!event.shiftKey || !onAtMention) return;
+          window.dispatchEvent(new CustomEvent("ranoa:file-mention", { detail: { sourceRect: event.currentTarget.getBoundingClientRect() } }));
+          event.currentTarget.classList.remove("is-mentioning");
+          void event.currentTarget.offsetWidth;
+          event.currentTarget.classList.add("is-mentioning");
+        }}
         onDragEnter={handleDirectoryDrag}
         onDragOver={handleDirectoryDrag}
         onDragLeave={(event) => {
@@ -354,11 +361,13 @@ function TreeNode({
       >
         {node.isDir && (
           <svg
+            className="file-tree-rune"
             width="10" height="10" viewBox="0 0 10 10" fill="none"
-            stroke="var(--text-dim)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
-            style={{ flexShrink: 0, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.1s" }}
+            stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round"
+            style={{ flexShrink: 0, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.22s cubic-bezier(.2,.8,.2,1)" }}
           >
-            <polyline points="3 2 7 5 3 8" />
+            <path d="m2.2 1.4 5.6 3.6-5.6 3.6L3.8 5 2.2 1.4Z" />
+            <circle cx="3.8" cy="5" r=".7" fill="currentColor" stroke="none" />
           </svg>
         )}
         {!node.isDir && <span style={{ width: 10, flexShrink: 0 }} />}
@@ -404,7 +413,7 @@ function TreeNode({
               justifyContent: "center",
             }}
           >
-            <span className="file-change-indicator" style={{ width: 6, height: 6, borderRadius: "50%", background: "#d6a84b" }} />
+            <span className="file-change-indicator" style={{ width: 7, height: 7 }} />
           </span>
         )}
         {loading && (
@@ -536,6 +545,13 @@ function ChangeRow({
   return (
       <div
         className="file-change-row"
+      onPointerDown={(event) => {
+        if (!event.shiftKey || !onAtMention) return;
+        window.dispatchEvent(new CustomEvent("ranoa:file-mention", { detail: { sourceRect: event.currentTarget.getBoundingClientRect() } }));
+        event.currentTarget.classList.remove("is-mentioning");
+        void event.currentTarget.offsetWidth;
+        event.currentTarget.classList.add("is-mentioning");
+      }}
       onClick={(event) => {
         if (event.shiftKey && onAtMention) {
           onAtMention(rel, false);

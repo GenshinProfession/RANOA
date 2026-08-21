@@ -43,3 +43,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .factory
+
+# local image-generation intermediates; only the optimized companion assets ship
+/public/ui/pets/*-companion-v*.png

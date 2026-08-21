@@ -59,7 +59,25 @@ function CatppuccinIcon({ name, size = 14 }: IconProps & { name: CatppuccinIconN
 }
 
 export function FolderIcon({ size = 14, open = false }: IconProps & { open?: boolean }) {
-  return <CatppuccinIcon name={open ? "_folder_open" : "_folder"} size={size} />;
+  return (
+    <svg
+      aria-hidden="true"
+      className={`magic-grimoire-icon${open ? " is-open" : ""}`}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.45"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.7 5.3c3.15-.8 5.82-.14 8.3 1.75v11.15c-2.48-1.9-5.15-2.55-8.3-1.75V5.3Z" />
+      <path d="M20.3 5.3c-3.15-.8-5.82-.14-8.3 1.75v11.15c2.48-1.9 5.15-2.55 8.3-1.75V5.3Z" />
+      <path d="M12 7.05v11.1" opacity=".7" />
+      <path d="m12 9.15.72 1.55 1.55.72-1.55.72L12 13.7l-.72-1.56-1.55-.72 1.55-.72L12 9.15Z" fill="currentColor" stroke="none" />
+    </svg>
+  );
 }
 
 export function GenericFileIcon({ size = 14 }: IconProps) {

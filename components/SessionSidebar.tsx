@@ -369,8 +369,6 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const wtDropdownRef = useRef<HTMLDivElement>(null);
   const wtNewInputRef = useRef<HTMLInputElement>(null);
   const [explorerOpen, setExplorerOpen] = useState(true);
-  const [explorerRatio, setExplorerRatio] = useState(36);
-  const [explorerResizing, setExplorerResizing] = useState(false);
   const [explorerKey, setExplorerKey] = useState(0);
   const [explorerUploadBusy, setExplorerUploadBusy] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
@@ -391,52 +389,28 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const explorerRefreshStartedAtRef = useRef(0);
   const fileExplorerRef = useRef<FileExplorerHandle>(null);
   const sessionSidebarRef = useRef<HTMLDivElement>(null);
-  const explorerResizeRef = useRef<{ pointerId: number; startY: number; startRatio: number } | null>(null);
+  const [arcanePulse, setArcanePulse] = useState<{ id: number; x: number; y: number; tone: "gold" | "violet" | "crimson" } | null>(null);
 
-  const handleExplorerResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (!explorerOpen || !sessionSidebarRef.current) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    explorerResizeRef.current = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startRatio: explorerRatio,
-    };
-    setExplorerResizing(true);
-  }, [explorerOpen, explorerRatio]);
+  const handleArcanePress = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    const interactive = target.closest<HTMLElement>(
+      ".sidebar-new-session, .workspace-path-picker > button, .workspace-branch-picker > button, .session-item, .session-list-actions button, .file-explorer-toolbar button, .file-tree-row, .sidebar-settings-button, .sidebar-brand-collapse",
+    );
+    if (!interactive || interactive.matches(":disabled, [aria-disabled='true']")) return;
 
-  const handleExplorerResizeMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const resize = explorerResizeRef.current;
-    const sidebar = sessionSidebarRef.current;
-    if (!resize || !sidebar || resize.pointerId !== event.pointerId) return;
-    const height = sidebar.getBoundingClientRect().height;
-    if (height <= 0) return;
-    const deltaRatio = ((resize.startY - event.clientY) / height) * 100;
-    setExplorerRatio(Math.min(58, Math.max(24, resize.startRatio + deltaRatio)));
+    const rect = event.currentTarget.getBoundingClientRect();
+    const tone = interactive.matches(".session-item")
+      ? "crimson"
+      : interactive.matches(".file-tree-row, .workspace-path-picker > button, .workspace-branch-picker > button")
+        ? "violet"
+        : "gold";
+    setArcanePulse({
+      id: Date.now(),
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+      tone,
+    });
   }, []);
-
-  const handleExplorerResizeEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const resize = explorerResizeRef.current;
-    if (!resize || resize.pointerId !== event.pointerId) return;
-    explorerResizeRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    setExplorerResizing(false);
-  }, []);
-
-  const handleExplorerResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!explorerOpen) return;
-    let nextRatio: number | null = null;
-    if (event.key === "ArrowUp") nextRatio = explorerRatio + 2;
-    if (event.key === "ArrowDown") nextRatio = explorerRatio - 2;
-    if (event.key === "Home") nextRatio = 24;
-    if (event.key === "End") nextRatio = 58;
-    if (event.key === "Enter") nextRatio = 36;
-    if (nextRatio === null) return;
-    event.preventDefault();
-    setExplorerRatio(Math.min(58, Math.max(24, nextRatio)));
-  }, [explorerOpen, explorerRatio]);
 
   const loadSessions = useCallback(async (showLoading = false, force = false) => {
     try {
@@ -1008,7 +982,21 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const sessionTree = buildSessionTree(filteredSessions);
 
   return (
-    <div ref={sessionSidebarRef} className={`session-sidebar${explorerResizing ? " is-explorer-resizing" : ""}`} style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div
+      ref={sessionSidebarRef}
+      className="session-sidebar"
+      onPointerDown={handleArcanePress}
+      style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}
+    >
+      {arcanePulse && (
+        <span
+          key={arcanePulse.id}
+          className={`sidebar-arcane-pulse is-${arcanePulse.tone}`}
+          aria-hidden="true"
+          style={{ left: arcanePulse.x, top: arcanePulse.y }}
+          onAnimationEnd={() => setArcanePulse(null)}
+        />
+      )}
       {customPathOpen && (
         <DirectoryPicker
           busy={customPathValidating}
@@ -1028,10 +1016,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
           flexShrink: 0,
         }}
       >
-        <div className="sidebar-brand-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div className="sidebar-brand-row" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", columnGap: 10, marginBottom: 10 }}>
           <div className="sidebar-brand-lockup">
             <PiWebTitle />
-            <span className="sidebar-brand-edition">WORKBENCH</span>
           </div>
           {onCollapseSidebar && (
             <button
@@ -1060,12 +1047,27 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
           aria-label={selectedCwd ? t("sidebar.newSessionTitle", { path: selectedCwd }) : t("sidebar.selectProject")}
         >
           <span className="sidebar-new-session-icon" aria-hidden="true">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="7" />
-              <path d="M12 8.5v7M8.5 12h7" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="8.25" opacity=".62" />
+              <circle cx="12" cy="12" r="4.1" opacity=".42" />
+              <path d="m12 2.4 1.55 6.05L19.6 10 13.55 11.55 12 17.6l-1.55-6.05L4.4 10l6.05-1.55L12 2.4Z" />
+              <path d="m5.2 5.2 2.15 1.1M18.8 5.2l-2.15 1.1M5.2 18.8l2.15-1.1M18.8 18.8l-2.15-1.1" opacity=".72" />
+              <circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none" />
             </svg>
           </span>
-          <span>{t("sidebar.newConversation")}</span>
+          <span className="sidebar-new-session-copy">
+            <span className="sidebar-new-session-heading">
+              <strong>{t("sidebar.newConversation")}</strong>
+              <span className="sidebar-new-session-rune-line" aria-hidden="true"><i /><b /><i /></span>
+            </span>
+            <small>{t("sidebar.newConversationHint")}</small>
+          </span>
+          <span className="sidebar-new-session-tail" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z" />
+              <circle cx="12" cy="10" r="7.8" opacity=".32" />
+            </svg>
+          </span>
         </button>
 
         <div className="workspace-context-card">
@@ -1726,35 +1728,14 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         <div
           className={`file-explorer-section${explorerOpen ? " is-open" : ""}`}
           style={{
-            "--file-explorer-size": `${explorerRatio}%`,
             borderTop: "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
-            flex: explorerOpen ? "0 0 36%" : "0 0 auto",
+            flex: explorerOpen ? "0 0 min(42%, 420px)" : "0 0 auto",
             minHeight: 0,
             overflow: "hidden",
           } as CSSProperties}
         >
-          <div
-            className="file-explorer-divider"
-            role="separator"
-            aria-orientation="horizontal"
-            aria-valuemin={24}
-            aria-valuemax={58}
-            aria-valuenow={Math.round(explorerRatio)}
-            aria-label="调整文件浏览器高度"
-            tabIndex={explorerOpen ? 0 : -1}
-            onPointerDown={handleExplorerResizeStart}
-            onPointerMove={handleExplorerResizeMove}
-            onPointerUp={handleExplorerResizeEnd}
-            onPointerCancel={handleExplorerResizeEnd}
-            onKeyDown={handleExplorerResizeKeyDown}
-            onDoubleClick={() => setExplorerRatio(36)}
-          >
-            <span className="file-explorer-divider-track" />
-            <span className="file-explorer-divider-grip" aria-hidden="true"><i /><i /><i /></span>
-            <span className="file-explorer-divider-track" />
-          </div>
           <div className="file-explorer-toolbar" style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <button
               onClick={() => setExplorerOpen((open) => {

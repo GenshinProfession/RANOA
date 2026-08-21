@@ -34,15 +34,15 @@ test("keeps theme and manual file-panel toggles out of the top bar", () => {
   assert.doesNotMatch(source, /topbar-file-toggle/);
 });
 
-test("uses one desktop arcana banner and keeps versions out of the launch composer", async () => {
+test("uses one desktop arcana banner and keeps version labels out of the top bar", async () => {
   const chatWindowSource = await readFile(new URL("./ChatWindow.tsx", import.meta.url), "utf8");
   assert.match(source, /className="app-shell-topbar-primary"/);
   assert.match(source, /className="app-shell-topbar-row app-shell-topbar-secondary"/);
   assert.match(source, /className="topbar-conversation-title"/);
-  assert.match(source, /className="topbar-conversation-meta"/);
-  assert.match(source, /className="topbar-version-cluster"/);
-  assert.match(source, /NEXT_PUBLIC_APP_VERSION/);
-  assert.match(source, /NEXT_PUBLIC_PI_VERSION/);
+  assert.match(source, /className="topbar-conversation-meta topbar-conversation-meta-end"/);
+  assert.match(source, /className="topbar-arcana"[\s\S]*?className="topbar-companion-summon"[\s\S]*?className="topbar-conversation-meta topbar-conversation-meta-end"/);
+  assert.doesNotMatch(source, /className="topbar-version-cluster"/);
+  assert.doesNotMatch(source, /NEXT_PUBLIC_APP_VERSION|NEXT_PUBLIC_PI_VERSION/);
   assert.doesNotMatch(chatWindowSource, /chat-empty-version-stack/);
   assert.doesNotMatch(chatWindowSource, /NEXT_PUBLIC_APP_VERSION|NEXT_PUBLIC_PI_VERSION/);
 });
@@ -63,4 +63,22 @@ test("opens the unified settings hub from one bottom sidebar entry", () => {
   assert.match(source, /setSettingsOpen\(true\)/);
   assert.match(source, /<SettingsHub/);
   assert.doesNotMatch(source, /className="sidebar-global-panel"/);
+});
+
+test("uses the center sigil as the desktop companion control without covering session stats", () => {
+  assert.match(source, /desktopAvailable \? \(/);
+  assert.match(source, /className="topbar-companion-summon"/);
+  assert.match(source, /setDesktopPetEnabled\(!desktopPetEnabled\)/);
+  assert.doesNotMatch(source, /topbar-app-actions|topbar-pet-toggle/);
+});
+
+test("reserves a draggable desktop application bar with real menu entry points", () => {
+  assert.match(source, /function DesktopApplicationMenu/);
+  assert.match(source, /data-desktop-application-bar="true"/);
+  assert.match(source, /window\.ranoaDesktop\?\.menu\.open/);
+  assert.match(source, /desktopAvailable && <DesktopApplicationMenu locale=\{locale\}/);
+  assert.match(source, /className="desktop-window-controls"/);
+  assert.match(source, /window\.ranoaDesktop\?\.window\.toggleMaximize/);
+  assert.match(source, /className="desktop-application-mark" aria-hidden="true" \/>/);
+  assert.doesNotMatch(source, /desktop-application-mark" aria-hidden="true">π/);
 });

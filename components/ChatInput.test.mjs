@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -11,6 +12,16 @@ const jiti = createJiti(import.meta.url, {
 const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, canRestoreUserMessage, filterModelOptions, getUpwardMenuMaxHeight, getUserMessageText, getUserMessageDraftImages } = await jiti.import("./ChatInput.tsx");
 const { clearDraft, getDraft, mergeRestoredSubmissionDraft, mergeRestoredSubmissionText, rekeyDraft, setDraft } = await jiti.import("../lib/draft-store.ts");
 const { I18nProvider } = await jiti.import("@/hooks/useI18n");
+
+test("imports dropped documents as managed paths instead of embedding file contents", async () => {
+  const source = await readFile(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /fetch\("\/api\/attachments"/);
+  assert.match(source, /paths\.join\("\\n"\)/);
+  assert.match(source, /desktopBridge\.getPathForFile/);
+  assert.doesNotMatch(source, /file\.text\(\)/);
+  assert.doesNotMatch(source, /<dropped-file/);
+});
 
 test("renders the upstream model error", () => {
   const html = renderToStaticMarkup(

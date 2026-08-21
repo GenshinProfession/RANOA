@@ -2,11 +2,14 @@
 
 import type { CSSProperties } from "react";
 import { WALLPAPER_PRESETS, useWallpaperTheme } from "@/hooks/useWallpaperTheme";
+import { useDesktopPet } from "@/hooks/useDesktopPet";
 import { useI18n } from "@/hooks/useI18n";
 
 export function AppearanceSettings() {
   const { t } = useI18n();
   const { wallpaper, setWallpaper } = useWallpaperTheme();
+  const { enabled, desktopAvailable, setEnabled } = useDesktopPet();
+  const selectedPreset = WALLPAPER_PRESETS.find((preset) => preset.id === wallpaper) ?? WALLPAPER_PRESETS[0];
 
   return (
     <div className="appearance-settings">
@@ -23,6 +26,34 @@ export function AppearanceSettings() {
         </div>
         <span className="appearance-auto-badge"><i />{t("appearance.enabled")}</span>
       </section>
+
+      {desktopAvailable && (
+        <section className={`appearance-companion-card${enabled ? " is-enabled" : ""}`}>
+          <span
+            className="appearance-companion-portrait"
+            style={{ backgroundImage: `url(${selectedPreset.companionImage})` }}
+            aria-hidden="true"
+          >
+            <i />
+          </span>
+          <span className="appearance-companion-copy">
+            <span className="appearance-kicker">DESKTOP FAMILIAR</span>
+            <strong>{t("appearance.companion")}</strong>
+            <small>{t("appearance.companionDescription")}</small>
+          </span>
+          <button
+            type="button"
+            className="appearance-companion-switch"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={t("appearance.companion")}
+            onClick={() => setEnabled(!enabled)}
+          >
+            <span>{enabled ? t("appearance.companionOn") : t("appearance.companionOff")}</span>
+            <i aria-hidden="true"><b /></i>
+          </button>
+        </section>
+      )}
 
       <div className="appearance-section-heading">
         <div>

@@ -89,6 +89,7 @@ export interface ChatInputHandle {
   replaceMessage: (message: UserMessage) => void;
   prependText: (text: string) => void;
   addImages: (files: File[]) => void;
+  addFiles: (files: File[]) => void;
   rekeyDraft: (previousKey: string, nextKey: string) => void;
   restoreSubmission: (text: string, images?: ChatDraftImage[], targetDraftKey?: string) => void;
 }
@@ -407,6 +408,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>(() => (
     draftKey ? draftImagesToAttachedImages(getDraft(draftKey)?.images) : []
   ));
+  const [attachmentImporting, setAttachmentImporting] = useState(false);
+  const [attachmentImportError, setAttachmentImportError] = useState<string | null>(null);
+  const composerRootRef = useRef<HTMLDivElement>(null);
+  const [mentionFlight, setMentionFlight] = useState<{ id: number; left: number; top: number; dx: number; dy: number } | null>(null);
   const trimmedValue = value.trimStart();
   const bashMode = attachedImages.length === 0 && trimmedValue.startsWith("!");
   const bashExcluded = bashMode && trimmedValue.startsWith("!!");
@@ -632,6 +637,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     addImages(files: File[]) {
       processImageFiles(files);
     },
+    addFiles(files: File[]) {
+      processDroppedFiles(files);
+    },
   }));
 
   const processImageFiles = useCallback(async (files: File[]) => {
@@ -671,6 +679,71 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     } finally {
       pendingImageCountRef.current -= imageFiles.length;
     }
+  }, []);
+
+  const appendImportedPaths = useCallback((paths: string[]) => {
+    if (!paths.length) return;
+    const prefix = valueRef.current && !valueRef.current.endsWith("\n") ? "\n" : "";
+    const next = `${valueRef.current}${prefix}${paths.join("\n")}`;
+    valueRef.current = next;
+    setValue(next);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
+
+  const processDroppedFiles = useCallback(async (files: File[]) => {
+    const images = files.filter((file) => file.type.startsWith("image/"));
+    const documentFiles = files.filter((file) => !file.type.startsWith("image/"));
+    if (images.length) await processImageFiles(images);
+    if (!documentFiles.length) return;
+
+    const desktopBridge = window.ranoaDesktop;
+    if (desktopBridge) {
+      try {
+        const nativePaths = documentFiles.map((file) => desktopBridge.getPathForFile(file));
+        if (nativePaths.every(Boolean)) {
+          appendImportedPaths(nativePaths);
+          return;
+        }
+      } catch {
+        // A synthetic browser File has no native path; use the managed store.
+      }
+    }
+
+    setAttachmentImporting(true);
+    setAttachmentImportError(null);
+    try {
+      const form = new FormData();
+      documentFiles.forEach((file) => form.append("files", file, file.name));
+      const response = await fetch("/api/attachments", { method: "POST", body: form });
+      const result = await response.json() as { paths?: string[]; error?: string };
+      if (!response.ok || !result.paths?.length) throw new Error(result.error ?? `HTTP ${response.status}`);
+      appendImportedPaths(result.paths);
+    } catch (error) {
+      setAttachmentImportError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAttachmentImporting(false);
+    }
+  }, [appendImportedPaths, processImageFiles]);
+
+  useEffect(() => {
+    const onFileMention = (event: Event) => {
+      const detail = (event as CustomEvent<{ sourceRect?: DOMRect }>).detail;
+      const source = detail?.sourceRect;
+      const target = composerRootRef.current?.getBoundingClientRect();
+      if (!source || !target) return;
+      const left = source.left + source.width / 2;
+      const top = source.top + source.height / 2;
+      setMentionFlight({
+        id: Date.now(),
+        left,
+        top,
+        dx: target.left + Math.min(target.width * 0.28, 220) - left,
+        dy: target.top + target.height / 2 - top,
+      });
+      window.setTimeout(() => setMentionFlight(null), 620);
+    };
+    window.addEventListener("ranoa:file-mention", onFileMention);
+    return () => window.removeEventListener("ranoa:file-mention", onFileMention);
   }, []);
 
   const removeImage = useCallback((index: number) => {
@@ -752,6 +825,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, []);
 
   const handleSend = useCallback(async () => {
+    if (attachmentImporting) return;
     const currentValue = valueRef.current;
     const currentImages = attachedImagesRef.current;
     const msg = currentValue.trim();
@@ -767,7 +841,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     }
     clearInput();
     onSend(msg, currentImages.length ? currentImages : undefined);
-  }, [isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
+  }, [attachmentImporting, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
 
   const slashQuery = value.startsWith("/") && !/\s/.test(value.slice(1))
     ? value.slice(1).toLowerCase()
@@ -800,6 +874,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     : t(slashQuery ? "chat.matches" : "chat.commands", { count: filteredSlashCommands.length });
   const hasInputText = Boolean(value.trim());
   const canQueueStreamingMessage = hasInputText || attachedImages.length > 0;
+  const canSubmit = !attachmentImporting && canQueueStreamingMessage;
 
   // ── @ file autocomplete ──────────────────────────────────────────────────
   // Recomputed from the text before the caret on every change/caret move.
@@ -1386,26 +1461,47 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
   return (
     <div
+      ref={composerRootRef}
       style={{
         flexShrink: 0,
+        position: "relative",
         background: "transparent",
         padding: "0 16px 8px",
         paddingRight: isMobile ? 16 : 52, // desktop: 16px base + 36px for ChatMinimap alignment
       }}
     >
+      {mentionFlight && (
+        <span
+          key={mentionFlight.id}
+          className="ranoa-file-flight"
+          style={{
+            left: mentionFlight.left,
+            top: mentionFlight.top,
+            ["--flight-x" as string]: `${mentionFlight.dx}px`,
+            ["--flight-y" as string]: `${mentionFlight.dy}px`,
+          } as React.CSSProperties}
+          aria-hidden="true"
+        >
+          ◇
+        </span>
+      )}
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
         multiple
         style={{ display: "none" }}
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
-          processImageFiles(files);
+          void processDroppedFiles(files);
           e.target.value = "";
         }}
       />
+      {(attachmentImporting || attachmentImportError) && (
+        <div className={`chat-attachment-import-status${attachmentImportError ? " is-error" : ""}`} role="status">
+          {attachmentImporting ? "正在把文件收入 RANOA 附件库…" : `附件导入失败：${attachmentImportError}`}
+        </div>
+      )}
       <div style={{ maxWidth: 820, margin: "0 auto" }}>
         <ModelErrorBanner error={modelError} />
         <ModelScopeWarningBanner warnings={modelScopeWarnings} />
@@ -2755,7 +2851,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 className="chat-send-button"
                 data-chat-send="true"
                 onClick={handleSend}
-                disabled={!value.trim() && !attachedImages.length}
+                disabled={!canSubmit}
                 aria-label={t("chat.send")}
                 style={{
                   flexShrink: 0,
@@ -2763,12 +2859,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   width: 34,
                   height: 34,
                   padding: 0,
-                  background: (value.trim() || attachedImages.length) ? "var(--accent)" : "#59615f",
+                  background: canSubmit ? "var(--accent)" : "#59615f",
                   border: "none",
                   borderRadius: "50%",
-                  color: (value.trim() || attachedImages.length) ? "#fff" : "#c8cecb",
-                  cursor: (value.trim() || attachedImages.length) ? "pointer" : "not-allowed",
-                  boxShadow: (value.trim() || attachedImages.length) ? "0 1px 3px rgba(37,99,235,0.25)" : "none",
+                  color: canSubmit ? "#fff" : "#c8cecb",
+                  cursor: canSubmit ? "pointer" : "not-allowed",
+                  boxShadow: canSubmit ? "0 1px 3px rgba(37,99,235,0.25)" : "none",
                   transition: "background 0.15s, box-shadow 0.15s, transform 0.15s",
                 }}
               >

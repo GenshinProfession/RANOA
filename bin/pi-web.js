@@ -22,6 +22,7 @@ const { wireChildProcessLifecycle } = require("./process-lifecycle");
 
 const pkgDir = path.join(__dirname, "..");
 const nextDir = path.join(pkgDir, ".next");
+const ranoaAgentDir = path.join(process.env.USERPROFILE || process.env.HOME || ".", ".ranoa", "pi", "agent");
 
 // Resolve next's CLI entry directly to avoid relying on .bin symlinks (which
 // may not exist when installed via npx).
@@ -67,7 +68,7 @@ nextArgs.push("-H", hostname);
 const child = spawn(process.execPath, [nextBin, ...nextArgs], {
   cwd: pkgDir,
   stdio: ["inherit", "pipe", "inherit"],
-  env: { ...process.env, PI_WEB_HOSTNAME: hostname },
+  env: { ...process.env, PI_WEB_HOSTNAME: hostname, PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR || ranoaAgentDir },
 });
 wireChildProcessLifecycle(child);
 

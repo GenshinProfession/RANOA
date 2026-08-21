@@ -3,7 +3,7 @@
 ## Quick Start
 
 ```bash
-npm run dev   # port 30141
+npm run dev   # RANOA port 31141
 ```
 
 Typecheck: `node_modules/.bin/tsc --noEmit`  

@@ -50,6 +50,18 @@ function bearer(request: IncomingMessage): string {
   return header.slice("Bearer ".length).trim();
 }
 
+function hasServerCredentials(request: IncomingMessage, username: string, password: string): boolean {
+  const header = request.headers["x-ranoa-sync-auth"];
+  if (typeof header !== "string" || !header.startsWith("Basic ")) return false;
+  try {
+    const decoded = Buffer.from(header.slice("Basic ".length), "base64").toString("utf8");
+    const separator = decoded.indexOf(":");
+    return separator > 0 && decoded.slice(0, separator) === username && decoded.slice(separator + 1) === password;
+  } catch {
+    return false;
+  }
+}
+
 function pathParts(pathname: string): string[] {
   return pathname.split("/").filter(Boolean).map((part) => decodeURIComponent(part));
 }
@@ -58,11 +70,17 @@ async function auth(store: FileSyncStore, request: IncomingMessage): Promise<Syn
   return store.authenticate(bearer(request));
 }
 
-async function handle(store: FileSyncStore, request: IncomingMessage, response: ServerResponse): Promise<void> {
+async function handle(store: FileSyncStore, request: IncomingMessage, response: ServerResponse, credentials?: { username: string; password: string }): Promise<void> {
   const url = new URL(request.url ?? "/", "http://ranoa.local");
   const parts = pathParts(url.pathname);
   if (request.method === "OPTIONS") { response.statusCode = 204; response.end(); return; }
   if (request.method === "GET" && url.pathname === "/health") { sendJson(response, 200, { ok: true, protocol: 1, now: new Date().toISOString() }); return; }
+  if (credentials && !hasServerCredentials(request, credentials.username, credentials.password)) {
+    response.statusCode = 401;
+    response.setHeader("www-authenticate", 'Basic realm="RANOA Sync"');
+    sendJson(response, 401, { error: "server_auth_required", message: "Sync server account or password is incorrect" });
+    return;
+  }
   if (parts[0] !== "v1") throw new SyncStoreError("not_found", "Route not found", 404);
 
   if (parts[1] === "epoch" && parts.length === 2 && request.method === "GET") {
@@ -210,14 +228,17 @@ async function handle(store: FileSyncStore, request: IncomingMessage, response: 
 export interface SyncServerOptions {
   dataDir: string;
   databaseUrl?: string;
+  username?: string;
+  password?: string;
 }
 
 export async function createSyncServer(options: SyncServerOptions): Promise<{ server: Server; store: FileSyncStore }> {
   const persistence = options.databaseUrl ? new PostgresSyncPersistence(options.databaseUrl) : null;
   const store = new FileSyncStore(options.dataDir, persistence);
   await store.init();
+  const credentials = options.username && options.password ? { username: options.username, password: options.password } : undefined;
   const server = createServer((request, response) => {
-    handle(store, request, response).catch((error: unknown) => {
+    handle(store, request, response, credentials).catch((error: unknown) => {
       if (error instanceof SyncStoreError) sendJson(response, error.status, { error: error.code, message: error.message, details: error.details });
       else sendJson(response, 500, { error: "internal_error", message: "Internal sync server error" });
     });

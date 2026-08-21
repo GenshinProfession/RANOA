@@ -171,6 +171,30 @@ function getUserInputText(message: AgentMessage): string | null {
   return text.length > 0 ? text : null;
 }
 
+function getLastUserTaskText(messages: AgentMessage[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const text = getUserInputText(messages[index]);
+    if (text) return text;
+  }
+  return null;
+}
+
+function getLastAssistantSummary(messages: AgentMessage[]): { index: number; text: string } | null {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message?.role !== "assistant") continue;
+    const { answerBlocks } = splitFinalAssistantBlocks(message as AssistantMessage);
+    const text = answerBlocks
+      .filter((block): block is Extract<AssistantContentBlock, { type: "text" }> => block.type === "text")
+      .map((block) => block.text.trim())
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+    if (text) return { index, text };
+  }
+  return null;
+}
+
 function countToolCalls(messages: AgentMessage[], indices: number[]): number {
   let count = 0;
   for (const idx of indices) {
@@ -217,9 +241,10 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
   if (toolCallCount > 0) parts.push(`${toolCallCount} ${t(toolCallCount === 1 ? "chat.toolCall" : "chat.toolCalls")}`);
 
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div className={`chat-process-group${expanded ? " is-expanded" : ""}`} style={{ marginBottom: 14 }}>
       <button
         type="button"
+        className="chat-process-toggle"
         aria-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
         style={{
@@ -238,7 +263,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
         }}
         title={expanded ? t("chat.collapseProcess") : t("chat.expandProcess")}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>
+        <svg className="chat-process-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>
           <polyline points="4 2.5 7.5 6 4 9.5" />
         </svg>
         <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -246,7 +271,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
         </span>
       </button>
       {expanded && (
-        <div style={{ marginTop: 8 }}>
+        <div className="chat-process-content" style={{ marginTop: 8 }}>
           {children}
         </div>
       )}
@@ -271,6 +296,7 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
     if (soundEnabledRef.current) {
       playDoneSoundRef.current();
     }
+    void window.ranoaDesktop?.pet.setState("done");
     onAgentEnd?.();
   }, [onAgentEnd]);
 
@@ -301,6 +327,40 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
     modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsPanelOpen,
   });
   const sessionBusy = agentRunning || bashRunning;
+  const completionBaselineRef = useRef(0);
+  const completionPendingRef = useRef(false);
+  const wasSessionBusyRef = useRef(false);
+
+  useEffect(() => {
+    if (sessionBusy) {
+      if (!wasSessionBusyRef.current) completionBaselineRef.current = messages.length;
+      wasSessionBusyRef.current = true;
+      completionPendingRef.current = true;
+      return;
+    }
+    wasSessionBusyRef.current = false;
+    if (!completionPendingRef.current) return;
+    const summary = getLastAssistantSummary(messages);
+    if (!summary || summary.index < completionBaselineRef.current) return;
+    completionPendingRef.current = false;
+    void window.ranoaDesktop?.pet.present({
+      sessionId: sessionIdRef.current ?? session?.id ?? null,
+      text: summary.text,
+    });
+  }, [messages, session?.id, sessionBusy, sessionIdRef]);
+
+  useEffect(() => {
+    const pet = window.ranoaDesktop?.pet;
+    if (!pet) return;
+    return pet.onReply((reply) => {
+      const currentSessionId = sessionIdRef.current ?? session?.id ?? null;
+      if (reply.sessionId && currentSessionId && reply.sessionId !== currentSessionId) return;
+      const text = reply.text.trim();
+      if (!text) return;
+      if (sessionBusy) void handleFollowUp(text);
+      else void handleSend(text);
+    });
+  }, [handleFollowUp, handleSend, session?.id, sessionBusy, sessionIdRef]);
 
   useEffect(() => {
     if (!extensionDialog || soundedExtensionDialogIdRef.current === extensionDialog.id) return;
@@ -312,6 +372,31 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
   useEffect(() => {
     registerAbortHandler(sessionBusy ? handleAbort : null);
   }, [sessionBusy, handleAbort]);
+
+  useEffect(() => {
+    const pet = window.ranoaDesktop?.pet;
+    if (!pet) return;
+    const isToolActive = bashRunning || Boolean(pendingBash)
+      || agentPhase?.kind === "running_tools"
+      || agentPhase?.kind === "running_command";
+    const state: RanoaPetState = error || modelError
+      ? "error"
+      : isToolActive
+        ? "tool"
+        : agentPhase?.kind === "waiting_model" || streamState.isStreaming || isCompacting
+          ? "thinking"
+          : agentRunning
+            ? "working"
+          : "idle";
+    void pet.setState(state);
+    const taskText = getLastUserTaskText(messages) ?? session?.firstMessage?.trim() ?? "";
+    if (state !== "idle" && taskText) {
+      void pet.setActivity({
+        sessionId: sessionIdRef.current ?? session?.id ?? null,
+        text: taskText,
+      });
+    }
+  }, [agentPhase, agentRunning, bashRunning, error, isCompacting, messages, modelError, pendingBash, session?.firstMessage, session?.id, sessionIdRef, streamState.isStreaming]);
 
   // --- Lazy-load historical messages ---
   // Only render the last N messages initially. When the user scrolls to the
@@ -389,7 +474,7 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
   useEffect(() => () => { onContextUsageChange?.(null); }, [onContextUsageChange]);
 
   const onDrop = useCallback((files: File[]) => {
-    chatInputRef?.current?.addImages(files);
+    chatInputRef?.current?.addFiles(files);
   }, [chatInputRef]);
 
   const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop);
@@ -633,6 +718,7 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
               <line x1="87.5" y1="66.5" x2="85.4" y2="68.6"/>
             </g>
           </svg>
+          <div className="ranoa-drop-hint">释放文件，收入当前会话</div>
         </div>
       )}
 
@@ -701,10 +787,10 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
         </div>
       ) : (
       <>
-      <div className="relative flex min-w-0 flex-1 overflow-hidden">
-        <div ref={scrollContainerRef} className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-4 [scrollbar-width:none]">
-          <div style={{ minWidth: 0, padding: `0 ${CHAT_COLUMN_PADDING}px` }}>
-            <div ref={messageContentRef} style={{ width: "100%", minWidth: 0, maxWidth: 820, margin: "0 auto" }}>
+      <div className="chat-messages-region relative flex min-w-0 flex-1 overflow-hidden">
+        <div ref={scrollContainerRef} className="chat-message-scroll min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-4 [scrollbar-width:none]">
+          <div className="chat-message-gutter" style={{ minWidth: 0, padding: `0 ${CHAT_COLUMN_PADDING}px` }}>
+            <div ref={messageContentRef} className="chat-message-column" style={{ width: "100%", minWidth: 0, maxWidth: 820, margin: "0 auto" }}>
             {(() => {
               let lastUserIdx = -1;
               for (let i = messages.length - 1; i >= 0; i--) {

@@ -1,9 +1,19 @@
 import type { Metadata, Viewport } from "next";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { Noto_Sans_Mono } from "next/font/google";
 import { PwaRegistration } from "@/components/PwaRegistration";
 import { PRODUCT_NAME } from "@/lib/branding";
+import "@fontsource/cinzel-decorative/700.css";
+import "@fontsource/zcool-xiaowei/chinese-simplified-400.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
+import "./magic-polish.css";
+
+// Keep packaged and dev launches on the same user-owned data root.
+if (typeof process !== "undefined" && process.env.NEXT_RUNTIME === "nodejs" && !process.env.PI_CODING_AGENT_DIR) {
+  process.env.PI_CODING_AGENT_DIR = join(homedir(), ".ranoa", "pi", "agent");
+}
 
 const notoSansMono = Noto_Sans_Mono({
   subsets: ["latin", "cyrillic"],

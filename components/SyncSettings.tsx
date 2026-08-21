@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useI18n } from "@/hooks/useI18n";
 import type { SyncAuditRecord, SyncConflictRecord, SyncSnapshotRecord } from "@/lib/sync-protocol";
 import type { SyncCategorySummary, SyncScanSummary, SyncState } from "@/lib/sync-types";
+import { endpointFromHostPort, parseSyncEndpoint } from "@/lib/sync-connection-shared";
 
 interface SyncDevicePreview {
   deviceId: string;
@@ -18,6 +19,14 @@ interface SyncResponse extends SyncState {
   phase: "local-preview" | "pairing" | "ready";
   uploadEnabled: boolean;
   device: SyncDevicePreview | null;
+  connectionProfile: {
+    schemaVersion: 1;
+    host: string;
+    port: number;
+    username: string;
+    deviceName: string;
+    hasPassword: boolean;
+  } | null;
 }
 
 interface SyncPlan {
@@ -52,6 +61,7 @@ const EMPTY_STATE: SyncResponse = {
   phase: "local-preview",
   uploadEnabled: false,
   device: null,
+  connectionProfile: null,
 };
 
 function formatBytes(bytes: number): string {
@@ -74,10 +84,20 @@ export function SyncSettings() {
   const [state, setState] = useState<SyncResponse>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
-  const [busyAction, setBusyAction] = useState<"create" | "pair" | "approve" | "plan" | "upload" | "download" | "code" | "details" | "restore" | null>(null);
+  const [busyAction, setBusyAction] = useState<"create" | "deploy" | "pair" | "approve" | "plan" | "upload" | "download" | "code" | "details" | "restore" | null>(null);
   const [scanFeedback, setScanFeedback] = useState<"idle" | "complete">("idle");
   const [endpoint, setEndpoint] = useState("");
+  const [serverHost, setServerHost] = useState("");
+  const [serverPort, setServerPort] = useState("34141");
+  const [sshPort, setSshPort] = useState("22");
+  const [sshUsername, setSshUsername] = useState("");
+  const [sshPassword, setSshPassword] = useState("");
+  const [serverUsername, setServerUsername] = useState("");
+  const [serverPassword, setServerPassword] = useState("");
+  const [hasSavedPassword, setHasSavedPassword] = useState(false);
+  const [showServerCredentials, setShowServerCredentials] = useState(false);
   const [deviceName, setDeviceName] = useState("RANOA device");
+  const [setupMode, setSetupMode] = useState<"create" | "join">("create");
   const [pairCode, setPairCode] = useState("");
   const [requestId, setRequestId] = useState("");
   const [newDevicePublicKey, setNewDevicePublicKey] = useState("");
@@ -97,7 +117,21 @@ export function SyncSettings() {
 
   const applyState = useCallback((next: Partial<SyncResponse>) => {
     setState((current) => ({ ...current, ...next, connection: { ...current.connection, ...(next.connection ?? {}) } }));
-    if (next.connection?.endpoint) setEndpoint(next.connection.endpoint);
+    if (next.connectionProfile) {
+      setServerHost(next.connectionProfile.host);
+      setServerPort(String(next.connectionProfile.port));
+      setServerUsername(next.connectionProfile.username);
+      setHasSavedPassword(next.connectionProfile.hasPassword);
+      if (next.connectionProfile.deviceName) setDeviceName(next.connectionProfile.deviceName);
+    }
+    if (next.connection?.endpoint) {
+      setEndpoint(next.connection.endpoint);
+      if (!next.connectionProfile) {
+        const parsed = parseSyncEndpoint(next.connection.endpoint);
+        setServerHost(parsed.host);
+        setServerPort(String(parsed.port));
+      }
+    }
   }, []);
 
   const loadState = useCallback(async () => {
@@ -106,7 +140,19 @@ export function SyncSettings() {
       if (!response.ok) throw new Error("Unable to read sync state");
       const next = await response.json() as SyncResponse;
       setState(next);
-      if (next.connection.endpoint) setEndpoint(next.connection.endpoint);
+      if (next.connectionProfile) {
+        setServerHost(next.connectionProfile.host);
+        setServerPort(String(next.connectionProfile.port));
+        setServerUsername(next.connectionProfile.username);
+        setHasSavedPassword(next.connectionProfile.hasPassword);
+        setDeviceName(next.connectionProfile.deviceName || "RANOA device");
+        setEndpoint(endpointFromHostPort(next.connectionProfile.host, next.connectionProfile.port));
+      } else if (next.connection.endpoint) {
+        setEndpoint(next.connection.endpoint);
+        const parsed = parseSyncEndpoint(next.connection.endpoint);
+        setServerHost(parsed.host);
+        setServerPort(String(parsed.port));
+      }
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to read sync state");
@@ -118,12 +164,12 @@ export function SyncSettings() {
   useEffect(() => { void loadState(); }, [loadState]);
 
   const runAction = useCallback(async (action: string, payload: Record<string, unknown> = {}): Promise<SyncActionResponse> => {
-    const response = await fetch("/api/sync", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...payload }) });
+    const response = await fetch("/api/sync", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, endpoint: endpoint.trim(), host: serverHost.trim(), port: Number(serverPort) || 34141, username: serverUsername.trim(), password: serverPassword, deviceName: deviceName.trim(), ...payload }) });
     const result = await response.json() as SyncActionResponse;
     if (!response.ok) throw new Error(result.error ?? `Sync action failed: ${action}`);
     if (result.connection) applyState(result);
     return result;
-  }, [applyState]);
+  }, [applyState, deviceName, endpoint, serverHost, serverPassword, serverPort, serverUsername]);
 
   const scan = useCallback(async () => {
     setScanning(true);
@@ -150,10 +196,20 @@ export function SyncSettings() {
     finally { setBusyAction(null); }
   }, [t]);
 
-  const createNewVault = () => void withAction("create", async () => {
-    const result = await runAction("create-vault", { endpoint: endpoint.trim(), deviceName: deviceName.trim() || "RANOA device" });
-    applyState(result);
-    setActionFeedback(t("sync.vaultCreated"));
+  const deployAndCreate = () => void withAction("deploy", async () => {
+    const response = await fetch("/api/sync/deploy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ host: serverHost.trim(), sshPort: Number(sshPort) || 22, username: sshUsername.trim(), password: sshPassword, syncPort: Number(serverPort) || 34141, deviceName: deviceName.trim() || "RANOA device" }) });
+    const result = await response.json() as { error?: string; deployment?: { endpoint: string; host: string; syncPort: number; username: string; password: string } };
+    if (!response.ok || !result.deployment) throw new Error(result.error ?? t("sync.deployFailed"));
+    const deployment = result.deployment;
+    setEndpoint(deployment.endpoint);
+    setServerHost(deployment.host);
+    setServerPort(String(deployment.syncPort));
+    setServerUsername(deployment.username);
+    setServerPassword(deployment.password);
+    setHasSavedPassword(true);
+    const vault = await runAction("create-vault", { endpoint: deployment.endpoint, host: deployment.host, port: deployment.syncPort, username: deployment.username, password: deployment.password, deviceName: deviceName.trim() || "RANOA device" });
+    applyState(vault);
+    setActionFeedback(t("sync.deployComplete"));
   });
 
   const submitPairRequest = () => void withAction("pair", async () => {
@@ -248,19 +304,20 @@ export function SyncSettings() {
   const categoryRows = useMemo(() => scanSummary?.categories ?? [], [scanSummary]);
   const visualState = scanning ? "scanning" : scanFeedback === "complete" ? "complete" : state.connection.status;
   const connected = state.uploadEnabled;
+  const isLocalEndpoint = /^(https?:\/\/)?(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(?:\/|$)/i.test(endpoint.trim());
   const journey = [
-    { id: "inventory", label: t("sync.step.inventory"), state: scanning ? "active" : scanSummary ? "done" : "active" },
-    { id: "encryption", label: t("sync.step.encryption"), state: connected ? "done" : "waiting" },
-    { id: "ready", label: t("sync.step.ready"), state: plan || connected ? "active" : "waiting" },
+    { id: "server", label: t("sync.step.server"), state: endpoint.trim() ? "done" : "active" },
+    { id: "device", label: t("sync.step.device"), state: connected ? "done" : endpoint.trim() ? "active" : "waiting" },
+    { id: "sync", label: t("sync.step.sync"), state: plan || connected ? "active" : "waiting" },
   ] as const;
 
   return (
-    <div className="sync-settings" data-sync-state={visualState}>
+    <div className="sync-settings sync-settings-personal" data-sync-state={visualState}>
       <section className="sync-settings-hero">
         <div className="sync-settings-hero-mark" aria-hidden="true">
           <svg className="sync-settings-hero-svg" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18.5a5.5 5.5 0 1 1 1.9-10.66A6.5 6.5 0 0 1 21 10.5a4 4 0 0 1-1 7.9H7Z" /><path d="M12 10v6M9.5 13.5h5" /></svg>
         </div>
-        <div><span className="sync-settings-kicker">RANOA SYNC CENTER · PHASE 01</span><h3>{t("sync.title")}</h3><p>{t("sync.description")}</p></div>
+        <div><span className="sync-settings-kicker">RANOA SYNC CENTER · PERSONAL DEVICES</span><h3>{t("sync.title")}</h3><p>{t("sync.description")}</p><div className="sync-settings-hero-flow" aria-label={t("sync.personalTitle")}><span><b>1</b>{t("sync.step.server")}</span><i aria-hidden="true">→</i><span><b>2</b>{t("sync.step.device")}</span><i aria-hidden="true">→</i><span><b>3</b>{t("sync.step.sync")}</span></div></div>
         <span className="sync-settings-status" aria-live="polite"><i />{scanning ? t("sync.scanning") : scanFeedback === "complete" ? t("sync.scanComplete") : connected ? t("sync.connected") : t("sync.disconnected")}</span>
       </section>
 
@@ -271,23 +328,51 @@ export function SyncSettings() {
 
       <section className="sync-settings-connection">
         <div className="sync-settings-section-heading"><div><h3>{t("sync.connectionTitle")}</h3><p>{t("sync.connectionDescription")}</p></div><span className="sync-settings-phase-badge">{connected ? t("sync.connected") : t("sync.localPreview")}</span></div>
-        <div className="sync-settings-connection-form">
-          <label><span>{t("sync.endpoint")}</span><input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="http://127.0.0.1:34141" spellCheck={false} /></label>
-          <label><span>{t("sync.deviceName")}</span><input value={deviceName} onChange={(event) => setDeviceName(event.target.value)} /></label>
+        {!connected && <>
+          <div className="sync-settings-setup-switch" role="tablist" aria-label={t("sync.personalTitle")}>
+            <button type="button" role="tab" aria-selected={setupMode === "create"} className={setupMode === "create" ? "is-active" : ""} onClick={() => setSetupMode("create")}><span className="sync-settings-setup-number">01</span><span><strong>{t("sync.setupCreate")}</strong><small>{t("sync.setupCreateHint")}</small></span></button>
+            <button type="button" role="tab" aria-selected={setupMode === "join"} className={setupMode === "join" ? "is-active" : ""} onClick={() => setSetupMode("join")}><span className="sync-settings-setup-number">02</span><span><strong>{t("sync.setupJoin")}</strong><small>{t("sync.setupJoinHint")}</small></span></button>
+          </div>
+          <div className="sync-settings-setup-guide"><span aria-hidden="true">✦</span><p>{setupMode === "create" ? t("sync.setupCreateGuide") : t("sync.setupJoinGuide")}</p></div>
+        </>}
+        <div className="sync-settings-connection-form sync-settings-server-form">
+          <label className="sync-settings-server-host"><span>{setupMode === "create" ? t("sync.deployHost") : t("sync.serverHost")}</span><input value={serverHost} onChange={(event) => { const value = event.target.value; setServerHost(value); if (setupMode === "join") setEndpoint(endpointFromHostPort(value, serverPort)); }} placeholder={t("sync.serverHostPlaceholder")} spellCheck={false} /></label>
+          <label className="sync-settings-server-port"><span>{setupMode === "create" ? t("sync.sshPort") : t("sync.serverPort")}</span><input value={setupMode === "create" ? sshPort : serverPort} onChange={(event) => { const value = event.target.value.replace(/\D/g, "").slice(0, 5); if (setupMode === "create") setSshPort(value); else { setServerPort(value); setEndpoint(endpointFromHostPort(serverHost, value)); } }} placeholder={setupMode === "create" ? "22" : t("sync.serverPortPlaceholder")} inputMode="numeric" /></label>
+          <label className="sync-settings-device-name"><span>{t("sync.deviceName")}</span><input value={deviceName} onChange={(event) => setDeviceName(event.target.value)} /></label>
         </div>
+        {setupMode === "create" && <div className="sync-settings-credentials sync-settings-ssh-credentials">
+          <div className="sync-settings-credentials-heading"><strong>{t("sync.serverLoginTitle")}</strong><small>{t("sync.serverLoginHint")}</small></div>
+          <label><span>{t("sync.sshUsername")}</span><input value={sshUsername} onChange={(event) => setSshUsername(event.target.value)} placeholder={t("sync.sshUsernamePlaceholder")} autoComplete="username" /></label>
+          <label><span>{t("sync.sshPassword")}</span><input type="password" value={sshPassword} onChange={(event) => setSshPassword(event.target.value)} placeholder={t("sync.sshPasswordPlaceholder")} autoComplete="current-password" /></label>
+        </div>}
+        {setupMode === "join" && <div className="sync-settings-endpoint-preview"><span>⌁</span><code>{endpoint || t("sync.serverAddressPreview")}</code><button type="button" className="sync-settings-text-button" onClick={() => setShowServerCredentials((value) => !value)} aria-expanded={showServerCredentials}>{showServerCredentials ? t("sync.hideCredentials") : t("sync.addCredentials")}</button></div>}
+        {showServerCredentials && <div className="sync-settings-credentials">
+          <label><span>{t("sync.serverUsername")}</span><input value={serverUsername} onChange={(event) => setServerUsername(event.target.value)} placeholder={t("sync.serverUsernamePlaceholder")} autoComplete="username" /></label>
+          <label><span>{t("sync.serverPassword")}</span><input type="password" value={serverPassword} onChange={(event) => setServerPassword(event.target.value)} placeholder={hasSavedPassword ? t("sync.passwordSavedPlaceholder") : t("sync.serverPasswordPlaceholder")} autoComplete="current-password" /></label>
+          <small>{t("sync.serverCredentialsHint")}</small>
+        </div>}
+        <div className={`sync-settings-tunnel-note${isLocalEndpoint ? " is-local" : ""}`}>
+          <span className="sync-settings-tunnel-icon" aria-hidden="true">⌁</span>
+          <div><strong>{isLocalEndpoint ? t("sync.localTunnelTitle") : t("sync.endpointTitle")}</strong><small>{isLocalEndpoint ? t("sync.localTunnelDescription") : t("sync.endpointDescription")}</small></div>
+        </div>
+        {!connected && setupMode === "join" && <div className="sync-settings-pair-code"><label><span>{t("sync.pairCode")}</span><input value={pairCode} onChange={(event) => setPairCode(event.target.value.toUpperCase())} placeholder={t("sync.pairCodePlaceholder")} maxLength={10} /></label><small>{t("sync.pairCodeHint")}</small></div>}
         <div className="sync-settings-connection-row">
           <div className="sync-settings-connection-copy"><span className={`sync-settings-signal${connected ? " is-connected" : ""}`} aria-hidden="true"><i /><i /><i /></span><div><strong>{connected ? t("sync.connectedToVault") : t("sync.notConnected")}</strong><small>{connected ? `${shortId(state.connection.vaultId)} · ${shortId(state.connection.deviceId)}` : t("sync.connectLater")}</small></div></div>
           <div className="sync-settings-inline-actions">
-            {!connected && <><button type="button" className="sync-settings-secondary-button" onClick={createNewVault} disabled={loading || !endpoint.trim() || busyAction !== null}>{busyAction === "create" ? t("sync.working") : t("sync.createVault")}</button><button type="button" className="sync-settings-secondary-button" onClick={submitPairRequest} disabled={loading || !endpoint.trim() || !pairCode.trim() || busyAction !== null}>{busyAction === "pair" ? t("sync.working") : t("sync.joinWithCode")}</button></>}
+            {!connected && setupMode === "create" && <button type="button" className="sync-settings-primary-button" onClick={deployAndCreate} disabled={loading || !serverHost.trim() || !sshUsername.trim() || !sshPassword || busyAction !== null}>{busyAction === "deploy" ? t("sync.deploying") : t("sync.deployAndStart")}</button>}
+            {!connected && setupMode === "join" && <button type="button" className="sync-settings-primary-button" onClick={submitPairRequest} disabled={loading || !endpoint.trim() || !pairCode.trim() || busyAction !== null}>{busyAction === "pair" ? t("sync.working") : t("sync.joinWithCode")}</button>}
             {connected && <button type="button" className="sync-settings-secondary-button" onClick={createCode} disabled={busyAction !== null || !endpoint.trim()}>{busyAction === "code" ? t("sync.working") : t("sync.createPairingCode")}</button>}
           </div>
         </div>
-        {!connected && <div className="sync-settings-pair-code"><label><span>{t("sync.pairCode")}</span><input value={pairCode} onChange={(event) => setPairCode(event.target.value.toUpperCase())} placeholder={t("sync.pairCodePlaceholder")} maxLength={10} /></label><small>{t("sync.pairCodeHint")}</small></div>}
         {requestId && <div className="sync-settings-pairing-request"><div><strong>{t("sync.requestPending")}</strong><small>{shortId(requestId)}</small></div><button type="button" className="sync-settings-secondary-button" onClick={checkPairing} disabled={busyAction !== null}>{busyAction === "pair" ? t("sync.working") : t("sync.checkPairing")}</button><button type="button" className="sync-settings-text-button" onClick={() => copy(newDevicePublicKey)}>{t("sync.copyDeviceKey")}</button></div>}
         {connected && generatedCode && <div className="sync-settings-code-result"><span>{t("sync.pairingCode")}</span><code>{generatedCode}</code><button type="button" className="sync-settings-text-button" onClick={() => copy(generatedCode)}>{t("sync.copy")}</button></div>}
-        {connected && <div className="sync-settings-approval"><div><strong>{t("sync.approveDevice")}</strong><small>{t("sync.approveDeviceHint")}</small></div><label><span>{t("sync.requestId")}</span><input value={requestId} onChange={(event) => setRequestId(event.target.value)} placeholder="pair_…" spellCheck={false} /></label><label><span>{t("sync.devicePublicKey")}</span><input value={newDevicePublicKey} onChange={(event) => setNewDevicePublicKey(event.target.value)} placeholder={t("sync.devicePublicKeyPlaceholder")} spellCheck={false} /></label><button type="button" className="sync-settings-secondary-button" onClick={approveDevice} disabled={busyAction !== null || !requestId.trim() || !newDevicePublicKey.trim()}>{busyAction === "approve" ? t("sync.working") : t("sync.approve")}</button></div>}
-        {connected && <div className="sync-settings-device-meta"><span>{t("sync.deviceFingerprint")}</span><code>{shortId(state.device?.deviceId ?? state.connection.deviceId)}</code><span>{t("sync.epoch")}</span><code>{shortId(state.device?.serverEpoch)}</code></div>}
       </section>
+
+      {connected && <section className="sync-settings-device">
+        <div className="sync-settings-section-heading"><div><h3>{t("sync.pairDevice")}</h3><p>{t("sync.deviceSecurityDescription")}</p></div><span className="sync-settings-phase-badge">{t("sync.encryptedTransport")}</span></div>
+        <div className="sync-settings-device-summary"><span className="sync-settings-device-summary-mark" aria-hidden="true">⌘</span><div><strong>{t("sync.connectedToVault")}</strong><small>{shortId(state.connection.vaultId)} · {shortId(state.connection.deviceId)}</small></div><div className="sync-settings-device-meta"><span>{t("sync.deviceFingerprint")}</span><code>{shortId(state.device?.deviceId ?? state.connection.deviceId)}</code><span>{t("sync.epoch")}</span><code>{shortId(state.device?.serverEpoch)}</code></div></div>
+        <details className="sync-settings-advanced-pairing"><summary><span>{t("sync.approveDevice")}</span><small>{t("sync.approveDeviceHint")}</small><b aria-hidden="true">⌄</b></summary><div className="sync-settings-approval"><div><strong>{t("sync.approveDevice")}</strong><small>{t("sync.approveDeviceHint")}</small></div><label><span>{t("sync.requestId")}</span><input value={requestId} onChange={(event) => setRequestId(event.target.value)} placeholder="pair_…" spellCheck={false} /></label><label><span>{t("sync.devicePublicKey")}</span><input value={newDevicePublicKey} onChange={(event) => setNewDevicePublicKey(event.target.value)} placeholder={t("sync.devicePublicKeyPlaceholder")} spellCheck={false} /></label><button type="button" className="sync-settings-secondary-button" onClick={approveDevice} disabled={busyAction !== null || !requestId.trim() || !newDevicePublicKey.trim()}>{busyAction === "approve" ? t("sync.working") : t("sync.approve")}</button></div></details>
+      </section>}
 
       <section className="sync-settings-scan">
         <div className="sync-settings-section-heading"><div><h3>{t("sync.localInventory")}</h3><p>{t("sync.localInventoryDescription")}</p></div><div className="sync-settings-inline-actions"><button type="button" className="sync-settings-primary-button" onClick={() => void scan()} disabled={loading || scanning || busyAction !== null}><svg className={scanning ? "is-spinning" : ""} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-14.8-4L3 9" /><path d="M3 4v5h5M4 13a8.1 8.1 0 0 0 14.8 4L21 15" /><path d="M21 20v-5h-5" /></svg>{scanning ? t("sync.scanning") : t("sync.scanNow")}</button>{connected && <button type="button" className="sync-settings-secondary-button" onClick={refreshPlan} disabled={busyAction !== null || scanning}>{busyAction === "plan" ? t("sync.working") : t("sync.previewPlan")}</button>}</div></div>

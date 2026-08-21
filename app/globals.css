@@ -1,5 +1,143 @@
 @import "tailwindcss";
 
+/* Electron desktop chrome: the whole strip is draggable, while menu controls
+   remain interactive. It occupies real layout space, so Windows controls can
+   never cover session information in the workbench top bar below. */
+.app-shell.desktop-shell {
+  padding-top: 34px;
+}
+
+.desktop-application-bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 0 0 11px;
+  color: color-mix(in srgb, var(--character-text, var(--text)) 88%, white);
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--character-panel, var(--bg-panel)) 96%, #05080d),
+      color-mix(in srgb, var(--character-panel, var(--bg-panel)) 84%, #05080d));
+  border-bottom: 1px solid color-mix(in srgb, var(--character-trim, var(--accent)) 42%, transparent);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, .22);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.desktop-application-mark {
+  width: 30px;
+  height: 30px;
+  margin: 0 4px 0 -4px;
+  background: url("/ui/sidebar/ranoa-crest-v1.png") center / 31px auto no-repeat;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--character-glow, var(--accent)) 42%, transparent));
+}
+
+.desktop-application-name {
+  margin-right: 15px;
+  color: color-mix(in srgb, var(--character-text, var(--text)) 92%, white);
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: .17em;
+}
+
+.desktop-application-menu {
+  display: flex;
+  align-self: stretch;
+  align-items: stretch;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-application-menu button {
+  position: relative;
+  min-width: 46px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0;
+  color: color-mix(in srgb, var(--character-text, var(--text)) 76%, transparent);
+  background: transparent;
+  font: 500 12px/1 var(--font-sans, sans-serif);
+  cursor: default;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.desktop-application-menu button::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 3px;
+  left: 10px;
+  height: 1px;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--character-glow, var(--accent)), transparent);
+  transform: scaleX(.45);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.desktop-application-menu button:hover,
+.desktop-application-menu button:focus-visible {
+  color: var(--character-text, var(--text));
+  background: color-mix(in srgb, var(--character-glow, var(--accent)) 10%, transparent);
+  outline: none;
+}
+
+.desktop-application-menu button:hover::after,
+.desktop-application-menu button:focus-visible::after {
+  opacity: .82;
+  transform: scaleX(1);
+}
+
+.desktop-application-drag-title {
+  margin-left: auto;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--character-text, var(--text)) 42%, transparent);
+  font: 600 9px/1 var(--font-mono);
+  letter-spacing: .16em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-window-controls {
+  display: flex;
+  align-self: stretch;
+  margin-left: 16px;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-window-controls button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: color-mix(in srgb, var(--character-text, var(--text)) 72%, transparent);
+  background: transparent;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.desktop-window-controls button:hover,
+.desktop-window-controls button:focus-visible {
+  color: var(--character-text, var(--text));
+  background: color-mix(in srgb, var(--character-glow, var(--accent)) 13%, transparent);
+  outline: none;
+}
+
+.desktop-window-controls .desktop-window-close:hover,
+.desktop-window-controls .desktop-window-close:focus-visible {
+  color: #fff;
+  background: #c63f45;
+}
+
+.desktop-window-controls svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.15;
+  vector-effect: non-scaling-stroke;
+}
+
 @theme {
   --color-bg: var(--bg);
   --color-bg-panel: var(--bg-panel);
@@ -1028,6 +1166,178 @@ html:not(.dark) .chat-empty-state .chat-composer-shell .chat-composer textarea::
   }
 }
 
+/* Sync center palette contract: every surface follows the active character skin. */
+html[data-wallpaper] .sync-settings {
+  --sync-panel: var(--nova-panel, var(--bg-panel));
+  --sync-panel-deep: var(--nova-panel-deep, var(--bg));
+  --sync-panel-hover: var(--nova-panel-hover, var(--bg-hover));
+  --sync-accent: var(--nova-accent, var(--accent));
+  --sync-accent-bright: var(--nova-accent-bright, var(--accent-hover));
+  --sync-trim: var(--character-trim, var(--nova-accent-bright, #d9ba68));
+  --sync-text: var(--nova-text, var(--text));
+  --sync-muted: var(--nova-muted, var(--text-muted));
+  --sync-dim: var(--nova-dim, var(--text-dim));
+  color: var(--sync-text);
+}
+
+html[data-wallpaper] .sync-settings-hero,
+html[data-wallpaper] .sync-settings-connection,
+html[data-wallpaper] .sync-settings-device,
+html[data-wallpaper] .sync-settings-scan,
+html[data-wallpaper] .sync-settings-ops,
+html[data-wallpaper] .sync-settings-safety {
+  border-color: color-mix(in srgb, var(--sync-trim) 30%, var(--sync-panel) 70%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sync-panel) 94%, var(--sync-accent) 6%), color-mix(in srgb, var(--sync-panel-deep) 96%, var(--sync-accent) 4%));
+  box-shadow: inset 0 1px color-mix(in srgb, var(--sync-accent-bright) 6%, transparent), 0 12px 34px color-mix(in srgb, var(--sync-panel-deep) 38%, transparent);
+}
+
+html[data-wallpaper] .sync-settings-hero {
+  border-color: color-mix(in srgb, var(--sync-trim) 48%, var(--sync-panel) 52%);
+  background: radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--sync-trim) 13%, transparent), transparent 35%), linear-gradient(135deg, color-mix(in srgb, var(--sync-panel) 96%, var(--sync-accent) 4%), color-mix(in srgb, var(--sync-panel-deep) 96%, var(--sync-accent) 4%));
+}
+
+html[data-wallpaper] .sync-settings-hero-mark,
+html[data-wallpaper] .sync-settings-tunnel-icon,
+html[data-wallpaper] .sync-settings-device-summary-mark,
+html[data-wallpaper] .sync-settings-safety-icon {
+  color: var(--sync-trim);
+  border-color: color-mix(in srgb, var(--sync-trim) 42%, transparent);
+  background: color-mix(in srgb, var(--sync-trim) 10%, var(--sync-panel-deep));
+}
+
+html[data-wallpaper] .sync-settings-kicker,
+html[data-wallpaper] .sync-settings-code-result code,
+html[data-wallpaper] .sync-settings-text-button,
+html[data-wallpaper] .sync-settings-category-check,
+html[data-wallpaper] .sync-settings-hash code {
+  color: var(--sync-trim);
+}
+
+html[data-wallpaper] .sync-settings-hero h3,
+html[data-wallpaper] .sync-settings-section-heading h3,
+html[data-wallpaper] .sync-settings-connection-copy strong,
+html[data-wallpaper] .sync-settings-safety strong,
+html[data-wallpaper] .sync-settings-tunnel-note strong,
+html[data-wallpaper] .sync-settings-device-summary strong,
+html[data-wallpaper] .sync-settings-stats strong,
+html[data-wallpaper] .sync-settings-plan-heading strong,
+html[data-wallpaper] .sync-settings-plan-grid strong,
+html[data-wallpaper] .sync-settings-ops-card-heading,
+html[data-wallpaper] .sync-settings-ops-row b,
+html[data-wallpaper] .sync-settings-audit b {
+  color: var(--sync-text);
+}
+
+html[data-wallpaper] .sync-settings-hero p,
+html[data-wallpaper] .sync-settings-section-heading p,
+html[data-wallpaper] .sync-settings-connection-copy small,
+html[data-wallpaper] .sync-settings-safety small,
+html[data-wallpaper] .sync-settings-tunnel-note small,
+html[data-wallpaper] .sync-settings-device-summary small,
+html[data-wallpaper] .sync-settings-stats small,
+html[data-wallpaper] .sync-settings-category small,
+html[data-wallpaper] .sync-settings-plan-heading small,
+html[data-wallpaper] .sync-settings-plan-heading > span,
+html[data-wallpaper] .sync-settings-plan-grid small,
+html[data-wallpaper] .sync-settings-ops-row small,
+html[data-wallpaper] .sync-settings-ops-empty,
+html[data-wallpaper] .sync-settings-audit,
+html[data-wallpaper] .sync-settings-audit summary,
+html[data-wallpaper] .sync-settings-hash {
+  color: var(--sync-dim);
+}
+
+html[data-wallpaper] .sync-settings-journey,
+html[data-wallpaper] .sync-settings-connection-row,
+html[data-wallpaper] .sync-settings-device-summary,
+html[data-wallpaper] .sync-settings-ops-card,
+html[data-wallpaper] .sync-settings-stats > div,
+html[data-wallpaper] .sync-settings-category,
+html[data-wallpaper] .sync-settings-plan-grid > div,
+html[data-wallpaper] .sync-settings-tunnel-note,
+html[data-wallpaper] .sync-settings-advanced-pairing,
+html[data-wallpaper] .sync-settings-approval,
+html[data-wallpaper] .sync-settings-pairing-request,
+html[data-wallpaper] .sync-settings-code-result {
+  border-color: color-mix(in srgb, var(--sync-accent) 18%, var(--sync-panel) 82%);
+  background: color-mix(in srgb, var(--sync-panel-deep) 80%, var(--sync-accent) 6%);
+}
+
+html[data-wallpaper] .sync-settings-tunnel-note.is-local,
+html[data-wallpaper] .sync-settings-plan {
+  border-color: color-mix(in srgb, var(--sync-trim) 34%, var(--sync-panel) 66%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sync-panel) 86%, var(--sync-trim) 14%), color-mix(in srgb, var(--sync-panel-deep) 91%, var(--sync-accent) 9%));
+}
+
+html[data-wallpaper] .sync-settings-connection-form input,
+html[data-wallpaper] .sync-settings-pair-code input,
+html[data-wallpaper] .sync-settings-approval input {
+  border-color: color-mix(in srgb, var(--sync-accent) 20%, var(--sync-panel) 80%);
+  background: color-mix(in srgb, var(--sync-panel-deep) 90%, var(--sync-accent) 10%);
+  color: var(--sync-text);
+}
+
+html[data-wallpaper] .sync-settings-connection-form input:focus,
+html[data-wallpaper] .sync-settings-pair-code input:focus {
+  border-color: color-mix(in srgb, var(--sync-trim) 64%, transparent);
+  background: color-mix(in srgb, var(--sync-panel-deep) 82%, var(--sync-trim) 18%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sync-trim) 12%, transparent);
+}
+
+html[data-wallpaper] .sync-settings-secondary-button {
+  color: var(--sync-muted);
+  border-color: color-mix(in srgb, var(--sync-accent) 24%, var(--sync-panel) 76%);
+  background: color-mix(in srgb, var(--sync-panel) 70%, var(--sync-accent) 8%);
+}
+
+html[data-wallpaper] .sync-settings-primary-button {
+  color: var(--sync-panel-deep);
+  border-color: color-mix(in srgb, var(--sync-accent-bright) 74%, var(--sync-trim) 26%);
+  background: linear-gradient(180deg, var(--sync-accent-bright), var(--sync-trim));
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--sync-accent) 20%, transparent), inset 0 1px color-mix(in srgb, white 42%, transparent);
+}
+
+html[data-wallpaper] .sync-settings-primary-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sync-accent-bright) 84%, white), var(--sync-accent-bright));
+}
+
+html[data-wallpaper] .sync-settings-signal,
+html[data-wallpaper] .sync-settings-category-icon {
+  border-color: color-mix(in srgb, var(--sync-trim) 38%, transparent);
+  background: color-mix(in srgb, var(--sync-trim) 7%, var(--sync-panel-deep));
+}
+
+html[data-wallpaper] .sync-settings-signal i,
+html[data-wallpaper] .sync-settings-category-icon {
+  background: var(--sync-trim);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--sync-trim) 48%, transparent);
+}
+
+html[data-wallpaper] .sync-settings-step-orb {
+  border-color: color-mix(in srgb, var(--sync-dim) 50%, transparent);
+  background: color-mix(in srgb, var(--sync-panel-deep) 90%, var(--sync-accent) 10%);
+  color: var(--sync-dim);
+}
+
+html[data-wallpaper] .sync-settings-step.is-active .sync-settings-step-orb,
+html[data-wallpaper] .sync-settings-step.is-done .sync-settings-step-orb {
+  border-color: var(--sync-trim);
+}
+
+html[data-wallpaper] .sync-settings-step.is-active .sync-settings-step-orb {
+  color: var(--sync-trim);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--sync-trim) 10%, transparent);
+}
+
+html[data-wallpaper] .sync-settings-step.is-done .sync-settings-step-orb {
+  background: var(--sync-trim);
+  color: var(--sync-panel-deep);
+}
+
+html[data-wallpaper] .sync-settings-journey-line {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--sync-trim) 55%, transparent), color-mix(in srgb, var(--sync-accent) 42%, transparent), color-mix(in srgb, var(--sync-dim) 18%, transparent));
+}
+
 .sync-settings-ops { display: grid; gap: 16px; animation: ranoa-sync-panel-in .42s ease both; }
 .sync-settings-ops-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .sync-settings-ops-card { min-height: 136px; padding: 14px; border: 1px solid color-mix(in srgb, var(--character-trim, #d6af5b) 18%, transparent); border-radius: 16px; background: linear-gradient(145deg, color-mix(in srgb, var(--bg-panel, #17211f) 94%, transparent), color-mix(in srgb, var(--bg, #0d1615) 96%, transparent)); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); transition: border-color .22s ease, transform .22s ease, box-shadow .22s ease; }
@@ -1707,6 +2017,219 @@ html.dark {
   --glass-surface: rgba(25,31,26,0.68);
   --glass-highlight: rgba(255,255,255,0.05);
   --shadow-soft: 0 22px 60px rgba(0,0,0,0.22);
+}
+
+/* Cloud sync refinement: follow the appearance page rhythm instead of one dense form. */
+.sync-settings {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 4px 28px 28px;
+  gap: 18px;
+  box-sizing: border-box;
+}
+
+.sync-settings > section,
+.sync-settings > .sync-settings-error,
+.sync-settings > .sync-settings-feedback {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sync-settings-hero {
+  min-height: 82px;
+  padding: 20px 22px;
+  border-radius: 18px;
+  animation: ranoa-sync-panel-in 420ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.sync-settings-journey {
+  padding: 3px 8px 1px;
+}
+
+.sync-settings-connection,
+.sync-settings-device,
+.sync-settings-scan,
+.sync-settings-ops,
+.sync-settings-safety {
+  padding: 20px;
+  border-radius: 18px;
+  animation: ranoa-sync-panel-in 460ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.sync-settings-connection { animation-delay: 50ms; }
+.sync-settings-device { animation-delay: 90ms; }
+.sync-settings-scan { animation-delay: 130ms; }
+.sync-settings-ops { animation-delay: 170ms; }
+
+.sync-settings-section-heading {
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.sync-settings-section-heading h3 { font-size: 17px; letter-spacing: .01em; }
+.sync-settings-section-heading p { max-width: 660px; }
+
+.sync-settings-connection-form {
+  grid-template-columns: minmax(0, 1.45fr) minmax(190px, .7fr);
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.sync-settings-connection-form input,
+.sync-settings-pair-code input {
+  height: 40px;
+  border-radius: 11px;
+}
+
+.sync-settings-tunnel-note {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 12px;
+  padding: 11px 13px;
+  border: 1px solid rgba(144, 168, 154, .12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .025);
+  animation: ranoa-sync-details-in 260ms ease both;
+}
+
+.sync-settings-tunnel-note.is-local {
+  border-color: rgba(214, 179, 98, .22);
+  background: linear-gradient(90deg, rgba(214, 179, 98, .08), rgba(255, 255, 255, .02));
+}
+
+.sync-settings-tunnel-icon,
+.sync-settings-device-summary-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #d6b362;
+  border: 1px solid rgba(214, 179, 98, .28);
+  border-radius: 10px;
+  background: rgba(214, 179, 98, .08);
+  font-size: 17px;
+}
+
+.sync-settings-tunnel-note > div,
+.sync-settings-device-summary > div:not(.sync-settings-device-meta) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sync-settings-tunnel-note strong,
+.sync-settings-device-summary strong {
+  color: #d9e1db;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.sync-settings-tunnel-note small,
+.sync-settings-device-summary small {
+  color: #7c9085;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.sync-settings-connection-row {
+  margin-top: 17px;
+  padding: 14px;
+  border-radius: 13px;
+}
+
+.sync-settings-device {
+  border: 1px solid rgba(144, 177, 157, .18);
+  border-color: rgba(144, 177, 157, .18);
+  background: linear-gradient(135deg, rgba(26, 49, 40, .86), rgba(10, 25, 23, .9));
+}
+
+.sync-settings-ops {
+  border: 1px solid rgba(205, 177, 106, .2);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(22, 39, 34, .9), rgba(9, 22, 21, .9));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .035), 0 12px 34px rgba(0, 0, 0, .12);
+}
+
+.sync-settings-device-summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 17px;
+  padding: 13px;
+  border: 1px solid rgba(144, 168, 154, .12);
+  border-radius: 13px;
+  background: rgba(3, 14, 13, .28);
+}
+
+.sync-settings-device-meta {
+  margin: 0 0 0 auto;
+  justify-content: flex-end;
+  max-width: 55%;
+}
+
+.sync-settings-device .sync-settings-approval {
+  margin-top: 12px;
+  border-style: solid;
+  border-color: rgba(144, 168, 154, .14);
+  background: rgba(255, 255, 255, .025);
+}
+
+.sync-settings-advanced-pairing {
+  margin-top: 12px;
+  border: 1px solid rgba(144, 168, 154, .12);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .018);
+  overflow: hidden;
+}
+
+.sync-settings-advanced-pairing summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  color: #d9e1db;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sync-settings-advanced-pairing summary::-webkit-details-marker { display: none; }
+.sync-settings-advanced-pairing summary span { font-size: 11px; font-weight: 650; }
+.sync-settings-advanced-pairing summary small { overflow: hidden; color: #7c9085; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.sync-settings-advanced-pairing summary b { color: #c8aa61; font-size: 14px; font-weight: 400; transition: transform 180ms ease; }
+.sync-settings-advanced-pairing[open] summary { border-bottom: 1px solid rgba(144, 168, 154, .12); }
+.sync-settings-advanced-pairing[open] summary b { transform: rotate(180deg); }
+.sync-settings-advanced-pairing .sync-settings-approval { margin: 0; border: 0; border-radius: 0; background: transparent; }
+
+.sync-settings-scan {
+  background: linear-gradient(135deg, rgba(22, 42, 36, .88), rgba(9, 22, 21, .92));
+}
+
+.sync-settings-stats { gap: 12px; margin-top: 18px; }
+.sync-settings-stats > div { padding: 14px; border-radius: 12px; }
+.sync-settings-category-grid { gap: 10px; margin-top: 12px; }
+.sync-settings-category { padding: 12px; border-radius: 12px; }
+
+.sync-settings-plan {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 14px;
+}
+
+.sync-settings-ops { padding-top: 19px; }
+.sync-settings-ops-grid { gap: 12px; }
+.sync-settings-ops-card { min-height: 154px; padding: 16px; border-radius: 14px; }
+
+.sync-settings-safety { padding: 14px 16px; }
+
+@media (max-width: 720px) {
+  .sync-settings { padding-inline: 0; }
+  .sync-settings-connection-form { grid-template-columns: 1fr; }
+  .sync-settings-device-summary { align-items: flex-start; flex-wrap: wrap; }
+  .sync-settings-device-meta { width: 100%; max-width: none; margin: 4px 0 0 41px; justify-content: flex-start; }
 }
 
 .catppuccin-file-icon {
@@ -5869,7 +6392,7 @@ html[data-wallpaper] .app-shell-sidebar {
   --bg-selected: var(--nova-selected);
   --text: var(--nova-text);
   --text-muted: var(--nova-muted);
-  --text-dim: var(--nova-dim);
+  --text-dim: color-mix(in srgb, var(--nova-muted) 86%, var(--nova-text) 14%);
   --border: color-mix(in srgb, var(--nova-muted) 14%, transparent);
   --accent: var(--nova-accent);
   --accent-hover: var(--nova-accent-bright);
@@ -6143,6 +6666,168 @@ html[data-wallpaper] .settings-hub-content .resource-config-surface {
   box-shadow: 0 0 8px var(--nova-accent, var(--accent));
   animation: appearance-status-pulse 2.1s ease-in-out infinite;
 }
+
+.appearance-companion-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--nova-muted, var(--text-muted)) 14%, transparent);
+  border-radius: 14px;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--nova-accent-cool, var(--accent)) 8%, transparent), transparent 48%),
+    color-mix(in srgb, var(--nova-panel-deep, var(--bg-panel)) 91%, transparent);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+  animation: appearance-card-arrive 420ms 80ms cubic-bezier(0.2, 0.78, 0.2, 1) both;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.appearance-companion-card::after {
+  content: "";
+  position: absolute;
+  right: 110px;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--nova-accent, var(--accent)) 12%, transparent), transparent 68%);
+  opacity: 0;
+  transform: scale(.72);
+  transition: opacity 220ms ease, transform 420ms cubic-bezier(0.2, 0.85, 0.2, 1);
+  pointer-events: none;
+}
+
+.appearance-companion-card.is-enabled {
+  border-color: color-mix(in srgb, var(--nova-accent, var(--accent)) 28%, transparent);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035), 0 9px 28px rgba(0, 0, 0, 0.1);
+}
+
+.appearance-companion-card.is-enabled::after { opacity: 1; transform: scale(1); }
+
+.appearance-companion-portrait {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  display: block;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--nova-accent, var(--accent)) 40%, transparent);
+  border-radius: 17px 17px 20px 20px;
+  background-color: color-mix(in srgb, var(--nova-panel, var(--bg)) 82%, transparent);
+  background-position: center 5px;
+  background-repeat: no-repeat;
+  background-size: 52px auto;
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--nova-accent-cool, var(--accent)) 10%, transparent), 0 0 18px transparent;
+  transition: transform 260ms cubic-bezier(0.2, 0.82, 0.2, 1), box-shadow 260ms ease;
+}
+
+.appearance-companion-portrait::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid color-mix(in srgb, var(--nova-accent-bright, var(--accent)) 25%, transparent);
+  border-radius: 50%;
+  clip-path: polygon(50% 0, 62% 36%, 100% 50%, 64% 62%, 50% 100%, 38% 64%, 0 50%, 36% 38%);
+  pointer-events: none;
+}
+
+.appearance-companion-portrait i {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 32px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--nova-accent-bright, var(--accent)) 52%, transparent), transparent 70%);
+  filter: blur(2px);
+  transform: translateX(-50%);
+}
+
+.appearance-companion-card.is-enabled .appearance-companion-portrait {
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--nova-accent-cool, var(--accent)) 13%, transparent), 0 0 17px color-mix(in srgb, var(--nova-accent, var(--accent)) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.appearance-companion-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.appearance-companion-copy strong {
+  color: var(--nova-text, var(--text));
+  font-size: 11.5px;
+  font-weight: 670;
+}
+
+.appearance-companion-copy small {
+  overflow: hidden;
+  color: var(--nova-muted, var(--text-muted));
+  font-size: 9px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appearance-companion-switch {
+  position: relative;
+  z-index: 1;
+  min-width: 104px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 7px 6px 10px;
+  color: var(--nova-dim, var(--text-dim));
+  border: 1px solid color-mix(in srgb, var(--nova-muted, var(--text-muted)) 16%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--nova-panel, var(--bg)) 72%, transparent);
+  cursor: pointer;
+  font-size: 8.5px;
+  font-weight: 680;
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease, transform 120ms ease;
+}
+
+.appearance-companion-switch:hover {
+  color: var(--nova-text, var(--text));
+  border-color: color-mix(in srgb, var(--nova-accent, var(--accent)) 38%, transparent);
+}
+
+.appearance-companion-switch:active { transform: scale(.965); }
+.appearance-companion-switch:focus-visible { outline: 2px solid color-mix(in srgb, var(--nova-accent-bright, var(--accent)) 64%, transparent); outline-offset: 2px; }
+
+.appearance-companion-switch > i {
+  position: relative;
+  width: 37px;
+  height: 21px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--nova-muted, var(--text-muted)) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--nova-panel-deep, var(--bg-panel)) 92%, transparent);
+  box-shadow: inset 0 2px 7px rgba(0, 0, 0, 0.22);
+  transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+}
+
+.appearance-companion-switch > i > b {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 13px;
+  height: 13px;
+  border: 1px solid color-mix(in srgb, var(--nova-muted, var(--text-muted)) 44%, transparent);
+  border-radius: 50%;
+  background: var(--nova-muted, var(--text-muted));
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  transform: rotate(45deg);
+  transition: left 230ms cubic-bezier(0.2, 0.88, 0.2, 1.15), background 200ms ease, box-shadow 200ms ease;
+}
+
+.appearance-companion-switch[aria-checked="true"] { color: var(--nova-accent-bright, var(--accent)); border-color: color-mix(in srgb, var(--nova-accent, var(--accent)) 34%, transparent); }
+.appearance-companion-switch[aria-checked="true"] > i { border-color: color-mix(in srgb, var(--nova-accent, var(--accent)) 54%, transparent); background: color-mix(in srgb, var(--nova-accent, var(--accent)) 18%, var(--nova-panel-deep, var(--bg-panel))); box-shadow: inset 0 0 9px color-mix(in srgb, var(--nova-accent, var(--accent)) 14%, transparent); }
+.appearance-companion-switch[aria-checked="true"] > i > b { left: 19px; background: var(--nova-accent-bright, var(--accent)); border-color: color-mix(in srgb, var(--nova-accent-bright, var(--accent)) 76%, white); box-shadow: 0 0 9px color-mix(in srgb, var(--nova-accent, var(--accent)) 70%, transparent); }
 
 .appearance-section-heading {
   display: flex;
@@ -6453,12 +7138,21 @@ html[data-wallpaper] .settings-hub-content .resource-config-surface {
   .appearance-intro { grid-template-columns: 38px minmax(0, 1fr); padding: 13px; }
   .appearance-intro-icon { width: 38px; height: 38px; }
   .appearance-auto-badge { grid-column: 1 / -1; justify-self: start; margin-left: 52px; }
+  .appearance-companion-card { grid-template-columns: 48px minmax(0, 1fr); }
+  .appearance-companion-portrait { width: 46px; height: 46px; background-size: 45px auto; }
+  .appearance-companion-switch { grid-column: 2; justify-self: start; margin-top: 4px; }
   .appearance-wallpaper-grid { grid-template-columns: 1fr; }
   .appearance-wallpaper-preview { aspect-ratio: 16 / 7.5; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .appearance-auto-badge i,
+  .appearance-companion-card,
+  .appearance-companion-card::after,
+  .appearance-companion-portrait,
+  .appearance-companion-switch,
+  .appearance-companion-switch > i,
+  .appearance-companion-switch > i > b,
   .appearance-wallpaper-card,
   .appearance-wallpaper-check,
   .app-shell-sidebar .session-item.is-selected,
@@ -9650,4 +10344,821 @@ html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-butt
     height: 36px !important;
     flex-basis: 36px !important;
   }
+}
+
+/* Keep the sync cards on the active wallpaper palette after all legacy layers. */
+html[data-wallpaper] .sync-settings-hero,
+html[data-wallpaper] .sync-settings-connection,
+html[data-wallpaper] .sync-settings-device,
+html[data-wallpaper] .sync-settings-scan,
+html[data-wallpaper] .sync-settings-ops,
+html[data-wallpaper] .sync-settings-safety {
+  border-color: color-mix(in srgb, var(--character-trim) 30%, var(--nova-panel) 70%) !important;
+  background: linear-gradient(135deg, var(--nova-panel), var(--nova-panel-deep)) !important;
+  box-shadow: inset 0 1px color-mix(in srgb, var(--nova-accent-bright) 7%, transparent), 0 12px 34px color-mix(in srgb, var(--nova-panel-deep) 38%, transparent) !important;
+}
+
+@media (min-width: 999999px) {
+/* ── Gradient Fade Borderless composer experiment ─────────────────────────
+   The composer is one functional component with two layout placements. The
+   frame owns only the bottom fade; the input shell stays transparent so the
+   wallpaper can remain visible behind the text. Controls remain individual
+   embossed buttons rather than turning the whole composer into a card. */
+html[data-wallpaper] .chat-composer-surface.chat-normal-composer-frame,
+html[data-wallpaper] .chat-composer-surface.chat-empty-composer-frame {
+  position: relative !important;
+  isolation: isolate !important;
+  padding: 18px 0 calc(14px + env(safe-area-inset-bottom)) !important;
+  background:
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--nova-panel-deep) 88%, var(--nova-accent) 12%) 0%,
+      color-mix(in srgb, var(--nova-panel-deep) 42%, transparent) 56%,
+      transparent 100%
+    ) !important;
+}
+
+html[data-wallpaper] .chat-composer-surface.chat-normal-composer-frame::before,
+html[data-wallpaper] .chat-composer-surface.chat-empty-composer-frame::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to top, rgba(15, 8, 10, .42), transparent 78%);
+  content: "";
+  pointer-events: none;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell {
+  min-height: 132px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell::before,
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell::after {
+  display: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell > *,
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell .chat-composer,
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell .chat-composer-tools {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer {
+  min-height: 78px !important;
+  border-radius: 0 !important;
+  padding: 10px 18px 0 !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-input,
+html[data-wallpaper] .chat-composer-surface .chat-composer-input:focus {
+  background: transparent !important;
+  color: var(--nova-text) !important;
+  caret-color: var(--nova-accent-bright) !important;
+  outline: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-input::placeholder {
+  color: color-mix(in srgb, var(--nova-text) 58%, transparent) !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools {
+  min-height: 48px !important;
+  margin-top: 0 !important;
+  padding: 4px 18px 0 !important;
+  border-top: 0 !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-sound-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-stop-button {
+  border: 1px solid color-mix(in srgb, var(--character-trim) 40%, transparent) !important;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--nova-panel) 72%, var(--character-glow) 28%),
+    color-mix(in srgb, var(--nova-panel-deep) 86%, var(--nova-accent) 14%)
+  ) !important;
+  box-shadow:
+    inset 0 1px color-mix(in srgb, white 17%, transparent),
+    inset 0 -2px color-mix(in srgb, #000 18%, transparent),
+    0 4px 14px color-mix(in srgb, var(--character-glow) 14%, transparent) !important;
+  color: color-mix(in srgb, var(--nova-text) 92%, var(--character-glow)) !important;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, filter 160ms ease !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-sound-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-stop-button {
+  border-radius: 50% !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger {
+  border-radius: 999px !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button {
+  border-radius: 50% !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button:hover,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger:hover,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-sound-button:hover,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button:not(:disabled):hover,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-stop-button:hover {
+  border-color: color-mix(in srgb, var(--character-glow) 74%, var(--character-trim)) !important;
+  filter: brightness(1.12) saturate(1.08) !important;
+  box-shadow:
+    inset 0 1px color-mix(in srgb, white 22%, transparent),
+    inset 0 -2px color-mix(in srgb, #000 18%, transparent),
+    0 7px 22px color-mix(in srgb, var(--character-glow) 24%, transparent) !important;
+  transform: translateY(-1px);
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button:active,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger:active,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-sound-button:active,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button:not(:disabled):active,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-stop-button:active {
+  transform: translateY(1px) scale(.98);
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button:disabled {
+  border-color: color-mix(in srgb, var(--nova-muted) 34%, transparent) !important;
+  background: color-mix(in srgb, var(--nova-panel-deep) 76%, var(--nova-muted) 24%) !important;
+  box-shadow: inset 0 1px color-mix(in srgb, white 8%, transparent), 0 2px 8px rgba(0, 0, 0, .12) !important;
+  color: color-mix(in srgb, var(--nova-muted) 78%, var(--nova-text)) !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--character-glow) 78%, white) !important;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-wallpaper] .chat-composer-surface .chat-composer-tools button {
+    transition: none !important;
+  }
+}
+}
+
+/* The center sigil is the only desktop companion control. The surrounding
+   arcana line remains decorative, so it never steals space from session data. */
+.topbar-companion-summon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  display: block;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--nova-accent) 9%, transparent), transparent 66%);
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  transition: filter 180ms ease, transform 180ms cubic-bezier(.2, .8, .2, 1);
+  -webkit-app-region: no-drag;
+}
+
+.topbar-companion-summon i,
+.topbar-companion-summon b {
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 260ms cubic-bezier(.2, .82, .2, 1);
+}
+
+.topbar-companion-summon:hover {
+  filter: brightness(1.18) saturate(1.15);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.topbar-companion-summon:hover i {
+  background: radial-gradient(circle, color-mix(in srgb, var(--character-glow) 28%, transparent), color-mix(in srgb, var(--nova-panel-deep) 78%, transparent) 68%);
+  border-color: color-mix(in srgb, var(--character-trim) 82%, white 18%);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--character-glow) 5%, transparent), 0 0 22px color-mix(in srgb, var(--character-glow) 38%, transparent);
+}
+
+.topbar-companion-summon:active {
+  transform: translate(-50%, -50%) scale(.94);
+}
+
+.topbar-companion-summon:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--character-glow) 74%, white);
+  outline-offset: 4px;
+}
+
+.topbar-companion-summon[aria-pressed="true"] i {
+  background: radial-gradient(circle, color-mix(in srgb, var(--character-glow) 30%, transparent), color-mix(in srgb, var(--nova-panel-deep) 82%, transparent) 70%);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--character-glow) 5%, transparent), 0 0 24px color-mix(in srgb, var(--character-glow) 46%, transparent);
+  animation: companion-sigil-breathe 2.8s ease-in-out infinite;
+}
+
+.topbar-companion-summon[aria-pressed="true"] b {
+  background: var(--character-glow);
+  border-color: color-mix(in srgb, var(--character-glow) 72%, white 28%);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--character-glow) 78%, transparent);
+}
+
+.topbar-conversation-meta-end {
+  position: absolute !important;
+  top: 50%;
+  right: 16px;
+  z-index: 4;
+  max-width: min(42vw, 720px);
+  transform: translateY(-50%);
+}
+
+@keyframes companion-sigil-breathe {
+  0%, 100% { filter: brightness(.94); }
+  50% { filter: brightness(1.2); }
+}
+
+@media (max-width: 760px) {
+  .topbar-companion-summon { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar-companion-summon,
+  .topbar-companion-summon i,
+  .topbar-companion-summon b {
+    animation: none !important;
+    transition: none;
+  }
+}
+
+/* Top conversation area only: feather into the wallpaper without touching
+   the lower composer. */
+html[data-wallpaper] .chat-messages-region {
+  position: relative !important;
+  isolation: isolate !important;
+  background: transparent !important;
+}
+
+html[data-wallpaper] .chat-messages-region::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(to top, rgba(15, 8, 10, .9), transparent 82%);
+  content: "";
+  pointer-events: none;
+}
+
+html[data-wallpaper] .chat-messages-region > .chat-message-scroll,
+html[data-wallpaper] .chat-messages-region > .chat-minimap {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-wallpaper] .chat-message-scroll,
+html[data-wallpaper] .chat-message-gutter,
+html[data-wallpaper] .chat-message-column {
+  background: transparent !important;
+}
+
+html[data-wallpaper] .chat-message-assistant {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-wallpaper] .chat-thinking-block,
+html[data-wallpaper] .chat-tool-call-block {
+  border: 0 !important;
+  background: color-mix(in srgb, var(--nova-panel-deep) 22%, transparent) !important;
+  box-shadow: none !important;
+}
+
+html[data-wallpaper] .chat-thinking-content {
+  border-top: 0 !important;
+  background: transparent !important;
+}
+
+html[data-wallpaper] .sync-settings-hero {
+  background: radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--character-trim) 13%, transparent), transparent 35%), linear-gradient(135deg, var(--nova-panel), var(--nova-panel-deep)) !important;
+}
+
+html[data-wallpaper] .sync-settings-journey,
+html[data-wallpaper] .sync-settings-connection-row,
+html[data-wallpaper] .sync-settings-device-summary,
+html[data-wallpaper] .sync-settings-ops-card,
+html[data-wallpaper] .sync-settings-stats > div,
+html[data-wallpaper] .sync-settings-category,
+html[data-wallpaper] .sync-settings-plan-grid > div,
+html[data-wallpaper] .sync-settings-tunnel-note,
+html[data-wallpaper] .sync-settings-advanced-pairing,
+html[data-wallpaper] .sync-settings-approval,
+html[data-wallpaper] .sync-settings-pairing-request,
+html[data-wallpaper] .sync-settings-code-result {
+  border-color: color-mix(in srgb, var(--nova-accent) 22%, var(--nova-panel) 78%) !important;
+  background: color-mix(in srgb, var(--nova-panel-deep) 88%, var(--nova-accent) 12%) !important;
+}
+
+html[data-wallpaper] .sync-settings-tunnel-note.is-local,
+html[data-wallpaper] .sync-settings-plan {
+  border-color: color-mix(in srgb, var(--character-trim) 38%, var(--nova-panel) 62%) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nova-panel) 84%, var(--character-trim) 16%), var(--nova-panel-deep)) !important;
+}
+
+html[data-wallpaper] .sync-settings-secondary-button {
+  color: var(--nova-muted) !important;
+  border-color: color-mix(in srgb, var(--nova-accent) 26%, var(--nova-panel) 74%) !important;
+  background: color-mix(in srgb, var(--nova-panel) 78%, var(--nova-accent) 22%) !important;
+}
+
+html[data-wallpaper] .sync-settings-primary-button {
+  color: var(--nova-panel-deep) !important;
+  border-color: color-mix(in srgb, var(--nova-accent-bright) 72%, var(--character-trim) 28%) !important;
+  background: linear-gradient(180deg, var(--nova-accent-bright), var(--character-trim)) !important;
+}
+
+html[data-wallpaper] .sync-settings-hero h3,
+html[data-wallpaper] .sync-settings-section-heading h3,
+html[data-wallpaper] .sync-settings-connection-copy strong,
+html[data-wallpaper] .sync-settings-safety strong,
+html[data-wallpaper] .sync-settings-tunnel-note strong,
+html[data-wallpaper] .sync-settings-device-summary strong,
+html[data-wallpaper] .sync-settings-stats strong,
+html[data-wallpaper] .sync-settings-plan-heading strong,
+html[data-wallpaper] .sync-settings-plan-grid strong,
+html[data-wallpaper] .sync-settings-ops-card-heading,
+html[data-wallpaper] .sync-settings-ops-row b,
+html[data-wallpaper] .sync-settings-audit b {
+  color: var(--nova-text) !important;
+}
+
+html[data-wallpaper] .sync-settings-hero p,
+html[data-wallpaper] .sync-settings-section-heading p,
+html[data-wallpaper] .sync-settings-connection-copy small,
+html[data-wallpaper] .sync-settings-safety small,
+html[data-wallpaper] .sync-settings-tunnel-note small,
+html[data-wallpaper] .sync-settings-device-summary small,
+html[data-wallpaper] .sync-settings-stats small,
+html[data-wallpaper] .sync-settings-category small,
+html[data-wallpaper] .sync-settings-plan-heading small,
+html[data-wallpaper] .sync-settings-plan-heading > span,
+html[data-wallpaper] .sync-settings-plan-grid small,
+html[data-wallpaper] .sync-settings-ops-row small,
+html[data-wallpaper] .sync-settings-ops-empty,
+html[data-wallpaper] .sync-settings-audit,
+html[data-wallpaper] .sync-settings-audit summary,
+html[data-wallpaper] .sync-settings-hash {
+  color: var(--nova-dim) !important;
+}
+
+html[data-wallpaper] .sync-settings-kicker,
+html[data-wallpaper] .sync-settings-code-result code,
+html[data-wallpaper] .sync-settings-text-button,
+html[data-wallpaper] .sync-settings-category-check,
+html[data-wallpaper] .sync-settings-hash code,
+html[data-wallpaper] .sync-settings-phase-badge,
+html[data-wallpaper] .sync-settings-lock {
+  color: var(--character-trim) !important;
+}
+
+html[data-wallpaper] .sync-settings-hero-mark,
+html[data-wallpaper] .sync-settings-tunnel-icon,
+html[data-wallpaper] .sync-settings-device-summary-mark,
+html[data-wallpaper] .sync-settings-safety-icon,
+html[data-wallpaper] .sync-settings-signal,
+html[data-wallpaper] .sync-settings-category-icon {
+  color: var(--character-trim) !important;
+  border-color: color-mix(in srgb, var(--character-trim) 42%, transparent) !important;
+  background: color-mix(in srgb, var(--character-trim) 10%, var(--nova-panel-deep)) !important;
+}
+
+html[data-wallpaper] .sync-settings-signal i,
+html[data-wallpaper] .sync-settings-category-icon {
+  background: var(--character-trim) !important;
+  box-shadow: 0 0 9px color-mix(in srgb, var(--character-trim) 48%, transparent) !important;
+}
+
+html[data-wallpaper] .sync-settings-connection-form input,
+html[data-wallpaper] .sync-settings-pair-code input,
+html[data-wallpaper] .sync-settings-approval input {
+  border-color: color-mix(in srgb, var(--nova-accent) 24%, var(--nova-panel) 76%) !important;
+  background: var(--nova-panel-deep) !important;
+  color: var(--nova-text) !important;
+}
+
+/* Conversation readability contract: the wallpaper stays visible, while the
+   active character skin owns every foreground surface and text tone. */
+html[data-wallpaper] {
+  --bg: var(--nova-panel-deep);
+  --bg-panel: var(--nova-panel);
+  --bg-hover: var(--nova-panel-hover);
+  --bg-selected: var(--nova-selected);
+  --border: color-mix(in srgb, var(--nova-muted) 18%, transparent);
+  --text: var(--nova-text);
+  --text-muted: var(--nova-muted);
+  --text-dim: var(--nova-dim);
+  --user-bg: color-mix(in srgb, var(--nova-selected) 84%, var(--nova-accent) 16%);
+  --assistant-bg: color-mix(in srgb, var(--nova-panel) 86%, transparent);
+  --tool-bg: color-mix(in srgb, var(--nova-panel-deep) 82%, var(--nova-accent) 18%);
+  --bg-subtle: color-mix(in srgb, var(--nova-panel-deep) 84%, var(--nova-accent) 16%);
+  --chat-reading-surface: color-mix(in srgb, var(--nova-panel-deep) 42%, transparent);
+  --chat-reading-border: color-mix(in srgb, var(--nova-accent) 24%, var(--nova-muted) 10%);
+  --chat-reading-error: color-mix(in srgb, #ff8578 88%, var(--nova-text) 12%);
+}
+
+html[data-wallpaper] .app-shell-topbar {
+  background: color-mix(in srgb, var(--nova-panel-deep) 95%, var(--nova-accent) 5%) !important;
+  border-bottom-color: color-mix(in srgb, var(--nova-accent) 24%, transparent) !important;
+  color: var(--nova-text) !important;
+}
+
+html[data-wallpaper] .app-shell-topbar-primary {
+  height: calc(50px + env(safe-area-inset-top));
+  background: linear-gradient(96deg, color-mix(in srgb, var(--nova-panel-deep) 98%, var(--nova-accent) 2%), color-mix(in srgb, var(--nova-panel) 92%, var(--nova-accent) 8%), color-mix(in srgb, var(--nova-panel-deep) 98%, var(--nova-accent) 2%));
+  border-top-color: color-mix(in srgb, var(--nova-accent) 14%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--nova-accent) 30%, transparent);
+}
+
+html[data-wallpaper] .topbar-conversation-lockup {
+  top: 0;
+  bottom: auto;
+  left: 16px;
+  width: min(48vw, 660px);
+  height: 100%;
+  justify-content: center;
+}
+
+html[data-wallpaper] .topbar-conversation-line {
+  display: flex;
+  align-items: center;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+html[data-wallpaper] .topbar-conversation-title {
+  width: auto;
+  min-width: 0;
+  flex: 0 0 auto !important;
+  max-width: min(230px, 24vw);
+  color: var(--nova-accent-bright) !important;
+  font-size: 15px !important;
+  font-weight: 680 !important;
+  letter-spacing: .02em;
+  text-shadow: 0 1px 12px color-mix(in srgb, var(--nova-panel-deep) 70%, transparent);
+}
+
+html[data-wallpaper] .topbar-conversation-meta {
+  display: inline-flex !important;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+html[data-wallpaper] .app-shell-topbar .topbar-conversation-meta .topbar-session-pill {
+  height: 22px !important;
+  gap: 12px !important;
+  color: var(--nova-text) !important;
+  font-size: 13px !important;
+  font-weight: 580 !important;
+  letter-spacing: .01em;
+}
+
+html[data-wallpaper] .app-shell-topbar .topbar-conversation-meta .topbar-session-pill svg {
+  width: 13px;
+  height: 13px;
+}
+
+html[data-wallpaper] .topbar-version-cluster {
+  display: none !important;
+}
+
+html[data-wallpaper] .chat-messages-region {
+  isolation: isolate;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nova-panel-deep) 10%, transparent), transparent 34%, color-mix(in srgb, var(--nova-panel-deep) 8%, transparent));
+}
+
+html[data-wallpaper] .chat-message-scroll {
+  background: transparent;
+}
+
+html[data-wallpaper] .chat-message-column {
+  padding: 8px 16px 28px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-wallpaper] .chat-message,
+html[data-wallpaper] .chat-message .markdown-body {
+  color: var(--nova-text) !important;
+}
+
+html[data-wallpaper] .chat-message .markdown-body p,
+html[data-wallpaper] .chat-message .markdown-body li,
+html[data-wallpaper] .chat-message .markdown-body td {
+  color: var(--nova-text) !important;
+}
+
+html[data-wallpaper] .chat-message .markdown-body em,
+html[data-wallpaper] .chat-message .markdown-body blockquote,
+html[data-wallpaper] .chat-message .markdown-body th {
+  color: var(--nova-muted) !important;
+}
+
+html[data-wallpaper] .chat-message .markdown-body strong,
+html[data-wallpaper] .chat-message .markdown-body h1,
+html[data-wallpaper] .chat-message .markdown-body h2,
+html[data-wallpaper] .chat-message .markdown-body h3,
+html[data-wallpaper] .chat-message .markdown-body h4,
+html[data-wallpaper] .chat-message .markdown-body h5,
+html[data-wallpaper] .chat-message .markdown-body h6 {
+  color: var(--nova-text) !important;
+}
+
+html[data-wallpaper] .chat-message-user-bubble {
+  background: color-mix(in srgb, var(--nova-selected) 86%, var(--nova-accent) 14%) !important;
+  border-color: color-mix(in srgb, var(--nova-accent) 34%, var(--nova-muted) 12%) !important;
+  color: var(--nova-text) !important;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--nova-panel-deep) 26%, transparent), inset 0 1px color-mix(in srgb, var(--nova-accent-bright) 8%, transparent);
+}
+
+html[data-wallpaper] .chat-message-assistant {
+  padding: 10px 13px 9px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--nova-panel) 52%, transparent);
+  box-shadow: inset 0 1px color-mix(in srgb, var(--nova-text) 6%, transparent), 0 8px 24px color-mix(in srgb, var(--nova-panel-deep) 14%, transparent);
+  backdrop-filter: blur(4px) saturate(118%);
+}
+
+html[data-wallpaper] .chat-message-assistant > div:first-child {
+  color: var(--nova-muted) !important;
+  font-size: 12px !important;
+  font-weight: 560;
+}
+
+html[data-wallpaper] .chat-message-assistant > div:last-child {
+  color: var(--nova-muted) !important;
+}
+
+html[data-wallpaper] .chat-provider-error {
+  border-color: color-mix(in srgb, var(--chat-reading-error) 52%, var(--nova-panel) 48%) !important;
+  background: color-mix(in srgb, var(--chat-reading-error) 12%, var(--nova-panel-deep) 88%) !important;
+  color: var(--chat-reading-error) !important;
+}
+
+html[data-wallpaper] .chat-thinking-block,
+html[data-wallpaper] .chat-tool-call-block {
+  border-color: color-mix(in srgb, var(--nova-accent) 30%, var(--nova-muted) 10%) !important;
+  background: color-mix(in srgb, var(--nova-panel-deep) 82%, var(--nova-accent) 18%) !important;
+  color: var(--nova-text) !important;
+}
+
+html[data-wallpaper] .chat-thinking-toggle,
+html[data-wallpaper] .chat-tool-call-toggle {
+  color: var(--nova-muted) !important;
+}
+
+html[data-wallpaper] .chat-thinking-content {
+  color: var(--nova-muted) !important;
+  background: color-mix(in srgb, var(--nova-panel) 76%, var(--nova-panel-deep) 24%) !important;
+  border-top-color: color-mix(in srgb, var(--nova-accent) 22%, transparent) !important;
+}
+
+html[data-wallpaper] .chat-tool-call-name {
+  color: var(--nova-accent-bright) !important;
+}
+
+html[data-wallpaper] .chat-tool-call-preview {
+  color: var(--nova-muted) !important;
+}
+
+html[data-wallpaper] .chat-tool-call-toggle > span:not(.chat-tool-call-name):not(.chat-tool-call-preview),
+html[data-wallpaper] .chat-tool-call-toggle > svg,
+html[data-wallpaper] .chat-thinking-toggle > span:last-child {
+  color: var(--nova-muted) !important;
+  stroke: var(--nova-muted) !important;
+}
+
+@media (max-width: 760px) {
+  html[data-wallpaper] .app-shell-topbar-primary {
+    height: calc(31px + env(safe-area-inset-top));
+  }
+}
+
+@media (min-width: 999999px) {
+/* Final precedence for the borderless composer experiment. Keep this block
+   at the end so older character-deck rules cannot reintroduce a second card. */
+html[data-wallpaper] .chat-composer-surface.chat-normal-composer-frame,
+html[data-wallpaper] .chat-composer-surface.chat-empty-composer-frame {
+  position: relative !important;
+  isolation: isolate !important;
+  padding: 18px 0 calc(14px + env(safe-area-inset-bottom)) !important;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--nova-panel-deep) 88%, var(--nova-accent) 12%) 0%,
+    color-mix(in srgb, var(--nova-panel-deep) 42%, transparent) 56%,
+    transparent 100%
+  ) !important;
+}
+
+}
+
+/* ── Conversation area: borderless feathered merge ────────────────────────
+   The lower input composer is intentionally untouched. Only the upper
+   message region receives the fade so the artwork can flow into the reading
+   area without another opaque panel or a hard separator. */
+html[data-wallpaper] .chat-messages-region {
+  position: relative !important;
+  isolation: isolate !important;
+  background: transparent !important;
+}
+
+html[data-wallpaper] .chat-messages-region::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, rgba(15, 8, 10, .9) 58%, var(--nova-panel-deep) 42%),
+    color-mix(in srgb, var(--nova-panel-deep) 20%, transparent) 48%,
+    transparent 82%
+  );
+  content: "";
+  pointer-events: none;
+}
+
+html[data-wallpaper] .chat-messages-region > .chat-message-scroll,
+html[data-wallpaper] .chat-messages-region > .chat-minimap {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-wallpaper] .chat-message-scroll,
+html[data-wallpaper] .chat-message-gutter,
+html[data-wallpaper] .chat-message-column {
+  background: transparent !important;
+}
+
+html[data-wallpaper] .chat-message-assistant {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-wallpaper] .chat-message-assistant > div:first-child,
+html[data-wallpaper] .chat-message-assistant > div:last-child {
+  color: var(--nova-muted) !important;
+}
+
+html[data-wallpaper] .chat-message-assistant .markdown-body {
+  color: var(--nova-text) !important;
+  text-shadow: 0 1px 10px color-mix(in srgb, var(--nova-panel-deep) 56%, transparent);
+}
+
+html[data-wallpaper] .chat-thinking-block,
+html[data-wallpaper] .chat-tool-call-block {
+  border: 0 !important;
+  background: color-mix(in srgb, var(--nova-panel-deep) 22%, transparent) !important;
+  box-shadow: none !important;
+}
+
+html[data-wallpaper] .chat-thinking-content {
+  border-top: 0 !important;
+  background: transparent !important;
+}
+
+@media (min-width: 999999px) {
+html[data-wallpaper] .chat-composer-surface.chat-normal-composer-frame::before,
+html[data-wallpaper] .chat-composer-surface.chat-empty-composer-frame::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to top, rgba(15, 8, 10, .42), transparent 78%);
+  content: "";
+  pointer-events: none;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell {
+  min-height: 132px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell::before,
+html[data-wallpaper] .chat-composer-surface .chat-composer-shell::after,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools::before,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools::after {
+  display: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools {
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer {
+  min-height: 78px !important;
+  padding: 10px 18px 0 !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools {
+  min-height: 48px !important;
+  margin-top: 0 !important;
+  padding: 4px 18px 0 !important;
+  border-top: 0 !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-input,
+html[data-wallpaper] .chat-composer-surface .chat-composer-input:focus {
+  background: transparent !important;
+  color: var(--nova-text) !important;
+  caret-color: var(--nova-accent-bright) !important;
+  outline: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-input::placeholder {
+  color: color-mix(in srgb, var(--nova-text) 58%, transparent) !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-sound-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-stop-button {
+  border: 1px solid color-mix(in srgb, var(--character-trim) 40%, transparent) !important;
+  background: linear-gradient(155deg,
+    color-mix(in srgb, var(--nova-panel) 72%, var(--character-glow) 28%),
+    color-mix(in srgb, var(--nova-panel-deep) 86%, var(--nova-accent) 14%)) !important;
+  box-shadow: inset 0 1px color-mix(in srgb, white 17%, transparent),
+    inset 0 -2px color-mix(in srgb, #000 18%, transparent),
+    0 4px 14px color-mix(in srgb, var(--character-glow) 14%, transparent) !important;
+  color: color-mix(in srgb, var(--nova-text) 92%, var(--character-glow)) !important;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, filter 160ms ease !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-sound-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-stop-button,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button {
+  border-radius: 50% !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger {
+  border-radius: 999px !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-attach-button:hover,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-model-config-trigger:hover,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-sound-button:hover,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button:not(:disabled):hover,
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-stop-button:hover {
+  border-color: color-mix(in srgb, var(--character-glow) 74%, var(--character-trim)) !important;
+  filter: brightness(1.12) saturate(1.08) !important;
+  box-shadow: inset 0 1px color-mix(in srgb, white 22%, transparent),
+    inset 0 -2px color-mix(in srgb, #000 18%, transparent),
+    0 7px 22px color-mix(in srgb, var(--character-glow) 24%, transparent) !important;
+  transform: translateY(-1px);
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools .chat-send-button:disabled {
+  border-color: color-mix(in srgb, var(--nova-muted) 34%, transparent) !important;
+  background: color-mix(in srgb, var(--nova-panel-deep) 76%, var(--nova-muted) 24%) !important;
+  box-shadow: inset 0 1px color-mix(in srgb, white 8%, transparent), 0 2px 8px rgba(0, 0, 0, .12) !important;
+  color: color-mix(in srgb, var(--nova-muted) 78%, var(--nova-text)) !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+html[data-wallpaper] .chat-composer-surface .chat-composer-tools button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--character-glow) 78%, white) !important;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-wallpaper] .chat-composer-surface .chat-composer-tools button {
+    transition: none !important;
+  }
+}
 }

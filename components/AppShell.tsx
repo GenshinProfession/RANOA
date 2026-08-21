@@ -13,6 +13,7 @@ import { ProjectTrustDialog } from "./ProjectTrustDialog";
 import { BranchNavigator } from "./BranchNavigator";
 import { SessionBranchSummary } from "./NewSessionContextBar";
 import { useWallpaperTheme } from "@/hooks/useWallpaperTheme";
+import { useDesktopPet } from "@/hooks/useDesktopPet";
 import { useI18n } from "@/hooks/useI18n";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useViewportHeight } from "@/hooks/useViewportHeight";
@@ -60,11 +61,71 @@ type AutoNameStatus =
 
 const TOP_BAR_ICON_BUTTON_SIZE = 36;
 
+function DesktopApplicationMenu({ locale }: { locale: string }) {
+  const labels = locale.startsWith("zh")
+    ? { file: "文件", edit: "编辑", view: "视图", window: "窗口" }
+    : { file: "File", edit: "Edit", view: "View", window: "Window" };
+
+  return (
+    <header className="desktop-application-bar" data-desktop-application-bar="true">
+      <div className="desktop-application-mark" aria-hidden="true" />
+      <div className="desktop-application-name">RANOA</div>
+      <nav className="desktop-application-menu" aria-label={locale.startsWith("zh") ? "应用菜单" : "Application menu"}>
+        {(Object.keys(labels) as RanoaDesktopMenuSection[]).map((section) => (
+          <button
+            key={section}
+            type="button"
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              void window.ranoaDesktop?.menu.open(section, { x: rect.left, y: rect.bottom });
+            }}
+          >
+            {labels[section]}
+          </button>
+        ))}
+      </nav>
+      <div className="desktop-application-drag-title">AGENTIC WORKBENCH</div>
+      <div className="desktop-window-controls" aria-label={locale.startsWith("zh") ? "窗口控制" : "Window controls"}>
+        <button
+          type="button"
+          title={locale.startsWith("zh") ? "最小化" : "Minimize"}
+          aria-label={locale.startsWith("zh") ? "最小化" : "Minimize"}
+          onClick={() => void window.ranoaDesktop?.window.minimize()}
+        >
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 8.5h8" /></svg>
+        </button>
+        <button
+          type="button"
+          title={locale.startsWith("zh") ? "最大化或还原" : "Maximize or restore"}
+          aria-label={locale.startsWith("zh") ? "最大化或还原" : "Maximize or restore"}
+          onClick={() => void window.ranoaDesktop?.window.toggleMaximize()}
+        >
+          <svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.25" y="2.25" width="7.5" height="7.5" rx=".35" /></svg>
+        </button>
+        <button
+          type="button"
+          className="desktop-window-close"
+          title={locale.startsWith("zh") ? "关闭" : "Close"}
+          aria-label={locale.startsWith("zh") ? "关闭" : "Close"}
+          onClick={() => void window.ranoaDesktop?.window.close()}
+        >
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 2.5 7 7m0-7-7 7" /></svg>
+        </button>
+      </div>
+    </header>
+  );
+}
+
 export function AppShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [initialNavigation] = useState(() => getInitialNavigation(searchParams));
   useWallpaperTheme();
+  const {
+    enabled: desktopPetEnabled,
+    desktopAvailable,
+    setEnabled: setDesktopPetEnabled,
+  } = useDesktopPet();
   const { locale, t: translate } = useI18n();
   const isMobile = useIsMobile();
   useViewportHeight();
@@ -174,6 +235,26 @@ export function AppShell() {
   const chatInputRef = useRef<ChatInputHandle | null>(null);
   const topBarRef = useRef<HTMLDivElement>(null);
   const mobileToolbarRef = useRef<HTMLDivElement>(null);
+
+  // One tactile click response for the whole workbench. Sidebar-specific
+  // feedback remains intact, while buttons in the chat and settings surfaces
+  // now share the same small arcane ripple.
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target || target.closest("textarea, input, [contenteditable=\"true\"]")) return;
+      const interactive = target.closest("button, [role=\"button\"], a, summary") as HTMLElement | null;
+      if (!interactive || interactive.hasAttribute("disabled") || interactive.getAttribute("aria-disabled") === "true") return;
+      const ripple = document.createElement("span");
+      ripple.className = "ranoa-global-click-ripple";
+      ripple.style.left = `${event.clientX}px`;
+      ripple.style.top = `${event.clientY}px`;
+      document.body.appendChild(ripple);
+      window.setTimeout(() => ripple.remove(), 520);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, []);
 
   // Branch navigator state — populated by ChatWindow via onBranchDataChange
   const [branchTree, setBranchTree] = useState<SessionTreeNode[]>([]);
@@ -972,6 +1053,7 @@ export function AppShell() {
     return (
       <button
         type="button"
+        className={mobileBanner ? "project-trust-banner" : "topbar-project-trust"}
         onClick={() => {
           setProjectTrustError(null);
           setProjectTrustDialogOpen(true);
@@ -1222,7 +1304,7 @@ export function AppShell() {
           background: activeTopPanel === "session" ? "var(--bg-selected)" : "none",
           border: "none",
           borderTop: activeTopPanel === "session" ? "2px solid var(--accent)" : "2px solid transparent",
-          fontSize: 11, color: "var(--text-muted)",
+          fontSize: mobile ? 11 : 13, color: mobile ? "var(--text-muted)" : "var(--text)",
           whiteSpace: "nowrap", cursor: showChat ? "pointer" : "default",
           fontVariantNumeric: "tabular-nums",
           transition: "color 0.1s, background 0.1s",
@@ -1402,7 +1484,7 @@ export function AppShell() {
         }
       }
     `}</style>
-    <div className="app-shell" style={{
+    <div className={`app-shell${desktopAvailable ? " desktop-shell" : ""}`} style={{
       display: "flex",
       width: "100%",
       height: "var(--app-viewport-height, 100dvh)",
@@ -1411,6 +1493,7 @@ export function AppShell() {
       overflow: "hidden",
       background: "var(--bg)",
     }}>
+      {desktopAvailable && <DesktopApplicationMenu locale={locale} />}
       {/* Mobile overlay backdrop */}
       <div
         className={`sidebar-overlay-backdrop${mobileSidebarReady ? "" : " sidebar-mobile-pending"}`}
@@ -1484,21 +1567,36 @@ export function AppShell() {
               <span className="topbar-brand-edition">{translate("empty.workbench")}</span>
             </div>
             <div className="topbar-conversation-lockup">
-              <div
-                className="topbar-conversation-title"
-                title={selectedSession?.name || selectedSession?.firstMessage || translate("i18n.newSession")}
-              >
-                {selectedSession?.name || selectedSession?.firstMessage?.slice(0, 72) || translate("i18n.newSession")}
-              </div>
-              <div className="topbar-conversation-meta">
-                {renderSessionStatsButton(false)}
-                {renderProjectTrustWarning(false)}
+              <div className="topbar-conversation-line">
+                <div
+                  className="topbar-conversation-title"
+                  title={selectedSession?.name || selectedSession?.firstMessage || translate("i18n.newSession")}
+                >
+                  {selectedSession?.name || selectedSession?.firstMessage?.slice(0, 72) || translate("i18n.newSession")}
+                </div>
               </div>
             </div>
-            <div className="topbar-arcana" aria-hidden="true"><span /><i /><b /></div>
-            <div className="topbar-version-cluster" aria-label="Application versions">
-              <span>WEB <b>v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"}</b></span>
-              <span>PI <b>v{process.env.NEXT_PUBLIC_PI_VERSION ?? "0.0.0"}</b></span>
+            <div className="topbar-arcana" aria-hidden={desktopAvailable ? undefined : true}>
+              <span />
+              {desktopAvailable ? (
+                <button
+                  type="button"
+                  className="topbar-companion-summon"
+                  title={translate(desktopPetEnabled ? "topbar.hideDesktopPet" : "topbar.showDesktopPet")}
+                  aria-label={translate(desktopPetEnabled ? "topbar.hideDesktopPet" : "topbar.showDesktopPet")}
+                  aria-pressed={desktopPetEnabled}
+                  onClick={() => setDesktopPetEnabled(!desktopPetEnabled)}
+                >
+                  <i aria-hidden="true" />
+                  <b aria-hidden="true" />
+                </button>
+              ) : (
+                <><i /><b /></>
+              )}
+            </div>
+            <div className="topbar-conversation-meta topbar-conversation-meta-end">
+              {renderSessionStatsButton(false)}
+              {renderProjectTrustWarning(false)}
             </div>
           </div>
         <div className="app-shell-topbar-row app-shell-topbar-secondary" style={{ display: "flex", alignItems: "center", position: "relative" }}>
@@ -1695,9 +1793,9 @@ export function AppShell() {
                       valueAlign: "left" | "right" = "left",
                       compact = false,
                     ) => (
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>{title}</div>
-                          <div style={{
+                        <div className="session-info-section" style={{ minWidth: 0 }}>
+                          <div className="session-info-section-title" style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>{title}</div>
+                          <div className="session-info-section-grid" style={{
                             display: "grid",
                             gridTemplateColumns: compact ? "max-content max-content" : "auto minmax(0, 1fr)",
                             columnGap: compact ? 14 : 12,
@@ -1706,8 +1804,8 @@ export function AppShell() {
                           }}>
                             {sectionRows.map(([label, value]) => (
                               <div key={`${title}:${label}`} style={{ display: "contents" }}>
-                                <div style={{ color: "var(--text-dim)", whiteSpace: "nowrap" }}>{label}</div>
-                                <div style={{
+                                <div className="session-info-label" style={{ color: "var(--text-dim)", whiteSpace: "nowrap" }}>{label}</div>
+                                <div className="session-info-value" style={{
                                   color: "var(--text-muted)",
                                   minWidth: 0,
                                   overflowWrap: compact ? "normal" : "anywhere",
@@ -1724,6 +1822,7 @@ export function AppShell() {
                       return (
                         <button
                           type="button"
+                          className="session-info-copy-button"
                            title={copied ? translate("session.copied") : translate(field === "file" ? "session.copyFile" : "session.copyId")}
                           onClick={() => handleCopySessionField(field, value)}
                           style={{
@@ -1767,13 +1866,13 @@ export function AppShell() {
                       );
                     };
                     const sessionInfoSection = (
-                      <div style={{ minWidth: 0 }}>
-                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>{translate("session.infoSection")}</div>
-                        <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", columnGap: 12, rowGap: 8, alignItems: "start" }}>
+                      <div className="session-info-section session-info-identity" style={{ minWidth: 0 }}>
+                         <div className="session-info-section-title" style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>{translate("session.infoSection")}</div>
+                        <div className="session-info-section-grid" style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", columnGap: 12, rowGap: 8, alignItems: "start" }}>
                           {sessionRows.map((row) => (
                             <div key={`session-info:${row.label}`} style={{ display: "contents" }}>
-                              <div style={{ color: "var(--text-dim)", whiteSpace: "nowrap" }}>{row.label}</div>
-                              <div style={{
+                              <div className="session-info-label" style={{ color: "var(--text-dim)", whiteSpace: "nowrap" }}>{row.label}</div>
+                              <div className="session-info-value" style={{
                                 color: "var(--text-muted)",
                                 minWidth: 0,
                                 overflowWrap: "anywhere",
@@ -1788,7 +1887,7 @@ export function AppShell() {
                     );
 
                     return (
-                      <div style={{
+                      <div className="session-info-overview-grid" style={{
                         display: "grid",
                         gridTemplateColumns: isMobile
                           ? "1fr"

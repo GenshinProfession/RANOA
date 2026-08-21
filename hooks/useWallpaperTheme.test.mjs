@@ -11,6 +11,7 @@ test("ships three persistent adaptive wallpaper presets", () => {
   assert.match(source, /id: "eris"/);
   assert.match(source, /localStorage\.setItem\(STORAGE_KEY, id\)/);
   assert.match(source, /document\.documentElement\.dataset\.wallpaper = id/);
+  assert.match(source, /ranoaDesktop\?\.pet\.setTheme\(id\)/);
 });
 
 test("uses a reduced-motion-safe view transition for wallpaper changes", () => {
